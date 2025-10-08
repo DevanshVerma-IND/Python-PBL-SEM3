@@ -1,0 +1,59 @@
+{
+  "exam_schedule": [
+    {
+      "sr_no": 1,
+      "subject_name": "OOPS with C++ Lab (L)",
+      "subject_code": "PCS 307",
+      "exam_date": "20/11/2025"
+    },
+    {
+      "sr_no": 2,
+      "subject_name": "Career Skills (S)",
+      "subject_code": "XCS 301",
+      "exam_date": "22/11/2025"
+    },
+    {
+      "sr_no": 3,
+      "subject_name": "Logic Design and Computer Organization (S)",
+      "subject_code": "TCS 308",
+      "exam_date": "24/11/2025"
+    },
+    {
+      "sr_no": 4,
+      "subject_name": "Data Structures with C (S)",
+      "subject_code": "TCS 302",
+      "exam_date": "26/11/2025"
+    },
+    {
+      "sr_no": 5,
+      "subject_name": "Object Oriented Programming with C++ (S)",
+      "subject_code": "TCS 307",
+      "exam_date": "28/11/2025"
+    },
+    {
+      "sr_no": 6,
+      "subject_name": "Discrete Structures and Combinatorics (S)",
+      "subject_code": "TMA 316",
+      "exam_date": "30/11/2025"
+    },
+    {
+      "sr_no": 7,
+      "subject_name": "Logic Design and Computer Organization Lab (L)",
+      "subject_code": "PCS 308",
+      "exam_date": "02/12/2025"
+    },
+    {
+      "sr_no": 8,
+      "subject_name": "Data Structures Lab (L)",
+      "subject_code": "PCS 302",
+      "exam_date": "04/12/2025"
+    },
+    {
+      "sr_no": 9,
+      "subject_name": "Python Programming(S)",
+      "subject_code": "TCS 346",
+      "exam_date": "06/12/2025"
+    }
+  ]
+}
+
