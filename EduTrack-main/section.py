@@ -1,10 +1,12 @@
 import os
 import json
+from datetime import datetime
 
 sectionListFile = "sectionlist.json"
 sectionsFile = "sections.json"
 teacherSectionsFile = "teachersections.json"
-sectionSubjectsFile = "sectionsubjects.json"
+sectionSubjectsFile = "sectionsubjects.json"  # This is your existing file
+studentSubjectsFile = "studentsubjects.json"
 
 def loadJson(filename, default):
     if not os.path.exists(filename):
@@ -19,54 +21,27 @@ def saveJson(filename, data):
     with open(filename, "w") as f:
         json.dump(data, f, indent=2)
 
-def initializeSectionSubjects():
-    """Initialize the section-subject mapping if it doesn't exist"""
-    section_subjects = loadJson(sectionSubjectsFile, {})
-    
-    # Define subject mappings for different section patterns
-    if not section_subjects:
-        section_subjects = {
-            "AI": ["Basic Maths", "English-I", "C Lang", "Electronics", "Computer Networking"],
-            "BI": ["Basic Maths", "English-I", "C Lang", "Electronics", "Computer Networking"],
-            "CI": ["Basic Maths", "English-I", "C Lang", "Electronics", "Computer Networking"],
-            "DI": ["Basic Maths", "English-I", "C Lang", "Electronics", "Computer Networking"],
-            "AIII": ["DSA", "English-III", "Maths-III", "Artificial Intelligence", "Operating System"],
-            "BIII": ["DSA", "English-III", "Maths-III", "Artificial Intelligence", "Operating System"],
-            "CIII": ["DSA", "English-III", "Maths-III", "Artificial Intelligence", "Operating System"],
-            "DIII": ["DSA", "English-III", "Maths-III", "Artificial Intelligence", "Operating System"],
-            "AV": ["English-V", "Machine Learning", "Algorithm", "OOP", "Database"],
-            "BV": ["English-V", "Machine Learning", "Algorithm", "OOP", "Database"],
-            "CV": ["English-V", "Machine Learning", "Algorithm", "OOP", "Database"],
-            "DV": ["English-V", "Machine Learning", "Algorithm", "OOP", "Database"]
-        }
-        saveJson(sectionSubjectsFile, section_subjects)
-    
-    return section_subjects
-
 def getSubjectsForSection(section):
-    """Get the subjects assigned to a specific section"""
-    section_subjects = initializeSectionSubjects()
+    """Get the subjects assigned to a specific section from sectionsubjects.json"""
+    section_subjects = loadJson(sectionSubjectsFile, {})
     return section_subjects.get(section.upper(), [])
 
-def assignSubjectsToStudent(roll, section):
-    """Assign subjects to a student based on their section"""
-    subjects = getSubjectsForSection(section)
-    if not subjects:
-        print(f"No predefined subjects found for section {section}")
-        return
-    
-    # Load existing student subjects
-    student_subjects_file = "studentsubjects.json"
-    student_subjects = loadJson(student_subjects_file, {})
-    
-    # Assign subjects to student
-    student_subjects[roll] = {
-        "section": section,
-        "subjects": subjects
-    }
-    
-    saveJson(student_subjects_file, student_subjects)
-    print(f"Assigned subjects to {roll} in section {section}: {', '.join(subjects)}")
+def initialize_attendance_for_student(roll, section):
+    """Initialize attendance record when student is assigned to section"""
+    try:
+        # Import attendance module
+        import attendance
+        
+        # Get subjects for this section from sectionsubjects.json (your existing file)
+        subjects = getSubjectsForSection(section)
+        
+        if subjects:
+            attendance.initialize_student_attendance(roll, section, subjects)
+            print(f"Attendance initialized for {roll} in section {section}")
+        else:
+            print(f"No subjects found for section {section} in sectionsubjects.json")
+    except Exception as e:
+        print(f"Error initializing attendance: {e}")
 
 def createSection():
     lst = loadJson(sectionListFile, [])
@@ -82,7 +57,7 @@ def createSection():
     saveJson(sectionListFile, sorted(lst))
     
     # Initialize section subjects mapping for the new section if it matches patterns
-    section_subjects = initializeSectionSubjects()
+    section_subjects = loadJson(sectionSubjectsFile, {})
     if s in ["AI", "BI", "CI", "DI"]:
         section_subjects[s] = ["Basic Maths", "English-I", "C Lang", "Electronics", "Computer Networking"]
     elif s in ["AIII", "BIII", "CIII", "DIII"]:
@@ -125,8 +100,17 @@ def assignSectionFromList():
     mapping[roll] = section_name
     saveJson(sectionsFile, mapping)
     
-    # Automatically assign subjects based on section
-    assignSubjectsToStudent(roll, section_name)
+    # Update studentsubjects.json
+    student_subjects = loadJson(studentSubjectsFile, {})
+    subjects = getSubjectsForSection(section_name)  # Get from sectionsubjects.json
+    student_subjects[roll] = {
+        "section": section_name,
+        "subjects": subjects
+    }
+    saveJson(studentSubjectsFile, student_subjects)
+    
+    # Initialize attendance
+    initialize_attendance_for_student(roll, section_name)
     
     print(f"Assigned section {section_name} to {roll}.")
 
@@ -190,9 +174,9 @@ def listTeacherSections(teachername):
 
 def getStudentSubjects(roll):
     """Get subjects assigned to a student"""
-    student_subjects_file = "studentsubjects.json"
-    student_subjects = loadJson(student_subjects_file, {})
-    return student_subjects.get(roll, {}).get("subjects", [])
+    student_subjects = loadJson(studentSubjectsFile, {})
+    student_data = student_subjects.get(roll, {})
+    return student_data.get("subjects", [])
 
 def viewStudentSubjects(roll):
     """View subjects assigned to a specific student"""
@@ -210,3 +194,40 @@ def viewStudentSubjects(roll):
     print(f"\nSubjects assigned to {roll} (Section {section}):")
     for i, subject in enumerate(subjects, 1):
         print(f" {i}. {subject}")
+
+def initialize_all_attendance_records():
+    """Initialize attendance records for all students who have sections assigned"""
+    try:
+        import attendance
+        
+        # Load all necessary data
+        sections_data = loadJson(sectionsFile, {})
+        
+        if not sections_data:
+            print("No students have been assigned to sections yet.")
+            return
+        
+        count = 0
+        for roll, section in sections_data.items():
+            subjects = getSubjectsForSection(section)  # Get from sectionsubjects.json
+            if subjects:
+                attendance.initialize_student_attendance(roll, section, subjects)
+                count += 1
+        
+        print(f"Attendance records initialized for {count} students.")
+        
+    except Exception as e:
+        print(f"Error initializing attendance records: {e}")
+
+# Check if sectionsubjects.json exists and has data
+def check_sectionsubjects_file():
+    """Check if sectionsubjects.json exists and has the required data"""
+    section_subjects = loadJson(sectionSubjectsFile, {})
+    if not section_subjects:
+        print("Warning: sectionsubjects.json is empty or doesn't exist.")
+        print("Please make sure you have the section-subject mappings in sectionsubjects.json")
+        return False
+    return True
+
+# Check the file when module is imported
+check_sectionsubjects_file()

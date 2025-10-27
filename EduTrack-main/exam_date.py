@@ -7,6 +7,7 @@ EXAMFILE = "exam_date.json"
 ALLOCATIONFILE = "sectionsubjects.json"
 STUDENTSUBJECTSFILE = "studentsubjects.json"
 
+# Subject name to code mapping based on your exam_date.json
 SUBJECT_NAME_TO_CODE = {
     "Basic Maths": "TMA101",
     "English-I": "TEA101",

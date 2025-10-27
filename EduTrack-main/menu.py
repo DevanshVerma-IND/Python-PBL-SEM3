@@ -82,8 +82,9 @@ def studentMenu(studentname):
         print("\n--- Student Menu ---")
         print("1. View dashboard")
         print("2. View my exam schedule")
-        print("3. View attendance")
-        print("4. Logout")
+        print("3. View my attendance")
+        print("4. View attendance summary")
+        print("5. Logout")
         choice = input("Enter choice: ").strip()
         if choice == "1":
             studentDashboard(studentname)
@@ -96,8 +97,12 @@ def studentMenu(studentname):
             else:
                 exam_date.viewStudentExamSchedule(studentname)
         elif choice == "3":
-            viewAttendance()
+            roll = subject.getRollNumber(studentname, "student")
+            attendance.view_attendance(student_roll=roll)
         elif choice == "4":
+            roll = subject.getRollNumber(studentname, "student")
+            attendance.get_student_attendance_summary(roll)
+        elif choice == "5":
             break
         else:
             print("Invalid choice.")
@@ -114,17 +119,15 @@ def teacherMenu(teachername):
         if choice == "1":
             section.viewMySections(teachername)
         elif choice == "2":
-            name = input("Enter student name: ").strip()
-            sec = input("Enter section: ").strip().upper()
+            roll = input("Enter student roll number: ").strip()
             code = input("Enter subject code: ").strip().upper()
-            markAttendance(name, sec, code)
+            attendance.mark_attendance(teachername, roll, code)
         elif choice == "3":
-            name = input("Enter student name: ").strip()
-            sec = input("Enter section: ").strip().upper()
+            roll = input("Enter student roll number: ").strip()
             code = input("Enter subject code: ").strip().upper()
-            updateAttendance(name, sec, code)
+            attendance.update_attendance(teachername, roll, code)
         elif choice == "4":
-            viewAttendance()
+            attendance.view_attendance(teachername=teachername)
         elif choice == "5":
             break
         else:
