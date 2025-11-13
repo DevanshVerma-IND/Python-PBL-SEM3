@@ -1,0 +1,96 @@
+{
+  "AI": [
+    {
+      "teacher": "utkarsh pant",
+      "topic": "Introduction to AI",
+      "date": "05/11/2025"
+    }
+  ],
+  "AIII": [
+    {
+      "teacher": "vipin",
+      "topic": "Advanced English Grammar",
+      "date": "05/11/2025"
+    }
+  ],
+  "AV": [
+    {
+      "teacher": "anita",
+      "topic": "C Programming Basics",
+      "date": "05/11/2025"
+    }
+  ],
+  "BI": [
+    {
+      "teacher": "rima",
+      "topic": "Digital Circuits and Logic Design",
+      "date": "05/11/2025"
+    }
+  ],
+  "BIII": [
+    {
+      "teacher": "vaibhav",
+      "topic": "Computer Networking Fundamentals",
+      "date": "05/11/2025"
+    }
+  ],
+  "BV": [
+    {
+      "teacher": "piyush",
+      "topic": "Data Structures Introduction",
+      "date": "05/11/2025"
+    }
+  ],
+  "CI": [
+    {
+      "teacher": "ansh",
+      "topic": "Operating System Concepts",
+      "date": "05/11/2025"
+    }
+  ],
+  "CIII": [
+    {
+      "teacher": "sarthak",
+      "topic": "Object-Oriented Programming (OOP) Basics",
+      "date": "05/11/2025"
+    }
+  ],
+  "CV": [
+    {
+      "teacher": "samiksha",
+      "topic": "Database Management System Overview",
+      "date": "05/11/2025"
+    }
+  ],
+  "DI": [
+    {
+      "teacher": "geetanjali",
+      "topic": "Cloud Computing Introduction",
+      "date": "05/11/2025"
+    }
+  ],
+  "DIII": [
+    {
+      "teacher": "ritisha",
+      "topic": "Cryptography and Network Security",
+      "date": "05/11/2025"
+    }
+  ],
+  "DV": [
+    {
+      "teacher": "monika",
+      "topic": "Machine Learning Basics",
+      "date": "05/11/2025"
+    },
+    {
+      "teacher": "tina",
+      "topic": "Algorithm Analysis and Design",
+      "date": "05/11/2025"
+    },
+    {
+      "teacher": "monika",
+      "topic": "Advance Machine Learning",
+      "date": "07/11/2025"
+    }
+  ]
+}

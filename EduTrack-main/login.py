@@ -31,7 +31,7 @@ class UserList:
             t = self.head
             while t.next:
                 t = t.next
-            t.next = u
+            t.next = u # type: ignore
 
     def find(self, username):
         t = self.head
@@ -142,15 +142,23 @@ def create_account(users):
     sec_a_salt = make_salt()
     sec_a_hash = make_hash(sec_a, sec_a_salt)
 
-    password = pwinput.pwinput("Enter password: ", mask='*')
+    # ✅ Password length validation
+    while True:
+        password = pwinput.pwinput("Enter password (must be more than 4 characters): ", mask='*')
+        if len(password) <= 4:
+            print("❌ Password too short! It must be more than 4 characters.")
+        else:
+            break
+
     salt = make_salt()
     pwd_hash = make_hash(password, salt)
 
     users.add(username, role, salt, pwd_hash, sec_q, sec_a_salt, sec_a_hash)
     save_users(users)
     rno = subject.getRollNumber(username, role)
-    print(f"Your roll no is {rno} ")
-    print("Account created!\n")
+    print(f"Your roll no is {rno}")
+    print("✅ Account created successfully!\n")
+
 
 def login(users):
     username = input("Enter username: ").strip()
