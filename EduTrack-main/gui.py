@@ -726,7 +726,6 @@ if tkavailable:
 
         def migrateuserdatadialog(self):
             try:
-                seq = []
                 roles = ("admin", "teacher", "student")
                 default = simpledialog.askstring("migrate", "default role for missing entries (admin/teacher/student) [student]")
                 if not default:
