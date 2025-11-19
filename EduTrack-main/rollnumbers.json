@@ -40,7 +40,24 @@
       "ishita": "20250038",
       "ritesh": "20250039",
       "anshuldas": "20250040",
-      "sukhminder": "20250041"
+      "sukhminder": "20250041",
+      "20250038": "20250042",
+      "devansh": "20250043",
+      "praveen": "20250044",
+      "20250004": "20250045",
+      "naman": "20250046",
+      "harshit": "20250047",
+      "krishna": "20250048",
+      "ani": "20250049",
+      "gohar": "20250050",
+      "ravi kumar": "20250055",
+      "kunal sharma": "20250056",
+      "lalit jain": "20250057",
+      "raman singh": "20250058",
+      "chirag kumar": "20250059",
+      "ayush jain": "20250060",
+      "jay kapoor": "20250061",
+      "madhav singh": "20250062"
     },
     "teacher": {
       "utkarsh pant": "T0001",
@@ -59,12 +76,13 @@
     },
     "admin": {
       "aman": "A0001",
-      "dev": "A0002"
+      "dev": "A0002",
+      "tony": "A0003"
     }
   },
   "counters": {
-    "student": 41,
+    "student": 62,
     "teacher": 13,
-    "admin": 2
+    "admin": 3
   }
 }

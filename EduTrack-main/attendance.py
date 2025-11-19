@@ -1,6 +1,4 @@
 import json
-import matplotlib.pyplot as plt
-import numpy as np
 import os
 from datetime import datetime
 
@@ -102,6 +100,13 @@ def view_attendance(teachername=None, student_roll=None):
                 print("No attendance data found for this student.")
                 return
 
+            try:
+                import matplotlib.pyplot as plt
+                import numpy as np
+            except ModuleNotFoundError:
+                print("matplotlib and numpy are required to display charts. Install with: pip install matplotlib numpy")
+                return
+
             colors = plt.cm.viridis(np.linspace(0.2, 0.9, len(subjects)))
             plt.figure(figsize=(12, 6))
             bars = plt.bar(subjects, attendance_percentages, color=colors, edgecolor="gray", linewidth=0.8)
@@ -140,6 +145,13 @@ def view_attendance(teachername=None, student_roll=None):
 
         if not all_subjects:
             print("No attendance data found for your sections.")
+            return
+
+        try:
+            import matplotlib.pyplot as plt
+            import numpy as np
+        except ModuleNotFoundError:
+            print("matplotlib and numpy are required to display charts. Install with: pip install matplotlib numpy")
             return
 
         colors = plt.cm.viridis(np.linspace(0.2, 0.9, len(all_subjects)))

@@ -3,13 +3,13 @@ import json
 from datetime import datetime
 from datetime import date
 
-sectionListFile = "sectionlist.json"
-sectionsFile = "sections.json"
-teacherSectionsFile = "teachersections.json"
-sectionSubjectsFile = "sectionsubjects.json"
-studentSubjectsFile = "studentsubjects.json"
+section_list_file = "sectionlist.json"
+sections_file = "sections.json"
+teacher_sections_file = "teachersections.json"
+section_subjects_file = "sectionsubjects.json"
+student_subjects_file = "studentsubjects.json"
 
-def loadJson(filename, default):
+def load_json(filename, default):
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     filepath = os.path.join(base_dir, filename)
     if not os.path.exists(filepath):
@@ -20,21 +20,21 @@ def loadJson(filename, default):
     except Exception:
         return default
 
-def saveJson(filename, data):
+def save_json(filename, data):
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     filepath = os.path.join(base_dir, filename)
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     with open(filepath, "w") as f:
         json.dump(data, f, indent=2)
 
-def getSubjectsForSection(section):
-    section_subjects = loadJson(sectionSubjectsFile, {})
+def get_subjects_for_section(section):
+    section_subjects = load_json(section_subjects_file, {})
     return section_subjects.get(section.upper(), [])
 
 def initialize_attendance_for_student(roll, section):
     try:
         import attendance
-        subjects = getSubjectsForSection(section)
+        subjects = get_subjects_for_section(section)
         if subjects:
             attendance.initialize_student_attendance(roll, section, subjects)
             print(f"Attendance initialized for {roll} in section {section}")
@@ -43,8 +43,8 @@ def initialize_attendance_for_student(roll, section):
     except Exception as e:
         print(f"Error initializing attendance: {e}")
 
-def createSection():
-    lst = loadJson(sectionListFile, [])
+def create_section():
+    lst = load_json(section_list_file, [])
     lst = sorted({str(s).strip().upper() for s in lst if str(s).strip()})
     s = input("Enter new section (e.g., A): ").strip().upper()
     if not s:
@@ -54,32 +54,32 @@ def createSection():
         print("Section already exists.")
         return
     lst.append(s)
-    saveJson(sectionListFile, sorted(lst))
-    section_subjects = loadJson(sectionSubjectsFile, {})
+    save_json(section_list_file, sorted(lst))
+    section_subjects = load_json(section_subjects_file, {})
     if s in ["AI", "BI", "CI", "DI"]:
         section_subjects[s] = ["Basic Maths", "English-I", "C Lang", "Electronics", "Computer Networking"]
     elif s in ["AIII", "BIII", "CIII", "DIII"]:
         section_subjects[s] = ["DSA", "English-III", "Maths-III", "Artificial Intelligence", "Operating System"]
     elif s in ["AV", "BV", "CV", "DV"]:
         section_subjects[s] = ["English-V", "Machine Learning", "Algorithm", "OOP", "Database"]
-    saveJson(sectionSubjectsFile, section_subjects)
+    save_json(section_subjects_file, section_subjects)
     print(f"Section {s} created.")
 
-def listSections(returnList=False):
-    lst = loadJson(sectionListFile, [])
+def list_sections(return_list=False):
+    lst = load_json(section_list_file, [])
     lst = sorted({str(s).strip().upper() for s in lst if str(s).strip()})
     if not lst:
         print("No sections available. Create one first.")
-        return [] if returnList else None
+        return [] if return_list else None
     print("\nSections:")
     for i, s in enumerate(lst, 1):
         print(f" {i}. {s}")
-    return lst if returnList else None
+    return lst if return_list else None
 
 import json, os
 from datetime import date
 
-def assignSectionFromList():
+def assign_section_from_list():
     try:
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -170,8 +170,8 @@ def assignSectionFromList():
     except Exception as e:
         print("Error while assigning section:", e)
 
-def assignSectionToTeacher():
-    lst = listSections(returnList=True)
+def assign_section_to_teacher():
+    lst = list_sections(return_list=True)
     if not lst:
         return
     teacher = input("Enter teacher username: ").strip()
@@ -192,23 +192,18 @@ def assignSectionToTeacher():
     if not chosen:
         print("No valid sections selected.")
         return
-    tmap = loadJson(teacherSectionsFile, {})
+    tmap = load_json(teacher_sections_file, {})
     tmap[teacher] = sorted(set(chosen))
-    saveJson(teacherSectionsFile, tmap)
+    save_json(teacher_sections_file, tmap)
     print(f"Assigned sections {', '.join(tmap[teacher])} to {teacher}.")
 
-def viewMySections(teachername):
-    tmap = loadJson(teacherSectionsFile, {})
-    secs = tmap.get(teachername, [])
-    if not secs:
-        print("No sections assigned to this teacher.")
-        return
-    print(f"\nSections assigned to {teachername}:")
-    for s in secs:
-        print(f" {s}")
+def view_my_sections(teacher_name):
+    tmap = load_json(teacher_sections_file, {})
+    secs = tmap.get(teacher_name, [])
+    return secs
 
-def viewSectionAssignments():
-    mapping = loadJson(sectionsFile, {})
+def view_section_assignments():
+    mapping = load_json(sections_file, {})
     if not mapping:
         print("No students assigned yet.")
         return
@@ -220,22 +215,22 @@ def viewSectionAssignments():
     for sec in sorted(bysec.keys()):
         print(f" Section {sec}: {', '.join(sorted(bysec[sec]))}")
 
-def getSectionForRoll(roll):
-    mapping = loadJson(sectionsFile, {})
+def get_section_for_roll(roll):
+    mapping = load_json(sections_file, {})
     return mapping.get(str(roll).strip(), "Not assigned")
 
-def listTeacherSections(teachername):
-    tmap = loadJson(teacherSectionsFile, {})
-    return tmap.get(teachername, [])
+def list_teacher_sections(teacher_name):
+    tmap = load_json(teacher_sections_file, {})
+    return tmap.get(teacher_name, [])
 
-def getStudentSubjects(roll):
-    student_subjects = loadJson(studentSubjectsFile, {})
+def get_student_subjects(roll):
+    student_subjects = load_json(student_subjects_file, {})
     student_data = student_subjects.get(roll, {})
     return student_data.get("subjects", [])
 
-def viewStudentSubjects(roll):
-    subjects = getStudentSubjects(roll)
-    section = getSectionForRoll(roll)
+def view_student_subjects(roll):
+    subjects = get_student_subjects(roll)
+    section = get_section_for_roll(roll)
     if section == "Not assigned":
         print(f"Student {roll} is not assigned to any section.")
         return
@@ -249,13 +244,13 @@ def viewStudentSubjects(roll):
 def initialize_all_attendance_records():
     try:
         import attendance
-        sections_data = loadJson(sectionsFile, {})
+        sections_data = load_json(sections_file, {})
         if not sections_data:
             print("No students have been assigned to sections yet.")
             return
         count = 0
         for roll, section in sections_data.items():
-            subjects = getSubjectsForSection(section)
+            subjects = get_subjects_for_section(section)
             if subjects:
                 attendance.initialize_student_attendance(roll, section, subjects)
                 count += 1
@@ -264,7 +259,7 @@ def initialize_all_attendance_records():
         print(f"Error initializing attendance records: {e}")
 
 def check_sectionsubjects_file():
-    section_subjects = loadJson(sectionSubjectsFile, {})
+    section_subjects = load_json(section_subjects_file, {})
     if not section_subjects:
         print("Warning: sectionsubjects.json is empty or doesn't exist.")
         print("Please make sure you have the section-subject mappings in sectionsubjects.json")

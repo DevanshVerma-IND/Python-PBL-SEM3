@@ -59,6 +59,55 @@
     {
       "name": "Database",
       "code": "TDB101"
+    },
+    {
+      "name": "Adv_English",
+      "code": "TAE101"
+    },
+    {
+      "name": "Cryptography",
+      "code": "TCG101"
+    },
+    {
+      "name": "Cloud Computing",
+      "code": "TCC101"
+    }
+    ,
+    {
+      "name": "Big Data Analytics",
+      "code": "TBD101"
+    },
+    {
+      "name": "Cyber Security",
+      "code": "TCS201"
+    },
+    {
+      "name": "Digital Logic Design",
+      "code": "TDL101"
+    },
+    {
+      "name": "Embedded Systems",
+      "code": "TES101"
+    },
+    {
+      "name": "Web Technologies",
+      "code": "TWT101"
+    },
+    {
+      "name": "Software Engineering",
+      "code": "TSE101"
+    },
+    {
+      "name": "Data Mining",
+      "code": "TDM101"
+    },
+    {
+      "name": "Natural Language Processing",
+      "code": "TNLP101"
+    },
+    {
+      "name": "Robotics (Theory - Sem 1)",
+      "code": "TRB101"
     }
   ]
 }

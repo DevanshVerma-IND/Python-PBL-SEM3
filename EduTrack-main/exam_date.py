@@ -195,8 +195,8 @@ def viewSectionExamDates(sectionName):
 def viewStudentExamSchedule(username):
     import subject
     import section
-    roll = subject.getRollNumber(username, "student")
-    sec = section.getSectionForRoll(roll)
+    roll = subject.get_roll_number(username, "student")
+    sec = section.get_section_for_roll(roll)
     if sec == "Not assigned":
         print("Section not assigned.")
         return
