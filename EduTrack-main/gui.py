@@ -1,352 +1,411 @@
 import os
 import sys
 import threading
+import contextlib
+import io
 import subject
+import section
 import attendance
 import assignments
-import section
+import topics
+import login
+import exam_date
 
 try:
     import tkinter as tk
     from tkinter import ttk, messagebox, simpledialog, filedialog
-    _TK_AVAILABLE = True
-except Exception as _tk_err:
-    tk = None
-    ttk = None
-    messagebox = None
-    simpledialog = None
-    filedialog = None
-    _TK_AVAILABLE = False
-    _TK_IMPORT_ERROR = _tk_err
+    tk_available = True
+except Exception as tk_err:
+    tk = ttk = messagebox = simpledialog = filedialog = None
+    tk_available = False
+    tk_import_error = tk_err
 
-this_dir = os.path.dirname(os.path.abspath(__file__))
-os.chdir(this_dir)
+def projectroot():
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
-if _TK_AVAILABLE:
-    class app(tk.Tk):
+def path(name: str) -> str:
+    return os.path.join(projectroot(), name)
+
+def runbg(fn, ondone=None, onerr=None):
+    def wrapper():
+        try:
+            fn()
+            if ondone:
+                ondone()
+        except Exception as e:
+            if onerr:
+                onerr(e)
+    t = threading.Thread(target=wrapper, daemon=True)
+    t.start()
+    return t
+
+if tk_available:
+
+    class edutrackapp(tk.Tk):
         def __init__(self):
             super().__init__()
-            self.title("edutrack")
-            self.geometry("800x520")
-            self.protocol("WM_DELETE_WINDOW", lambda: self._on_close())
-            self._create_widgets()
-            self._show_login()
+            self.title("EduTrack")
+            self.geometry("980x600")
+            self.users = None
+            self.createchrome()
+            self.showlogin()
 
-        def _create_widgets(self):
-                self.header_var = tk.StringVar(value="welcome")
-                header = ttk.Label(self, textvariable=self.header_var, font=("Segoe UI", 16, "bold"))
-                header.pack(fill=tk.X, padx=12, pady=8)
-                menubar = tk.Menu(self)
-                file_menu = tk.Menu(menubar, tearoff=0)
-                file_menu.add_command(label="Open Data Folder", command=self._open_data_folder)
-                file_menu.add_separator()
-                file_menu.add_command(label="Exit", command=self._on_close)
-                menubar.add_cascade(label="File", menu=file_menu)
-                help_menu = tk.Menu(menubar, tearoff=0)
-                help_menu.add_command(label="About", command=lambda: messagebox.showinfo("About", "EduTrack — simplified education tracker"))
-                menubar.add_cascade(label="Help", menu=help_menu)
-                try:
-                    self.config(menu=menubar)
-                except Exception:
-                    pass
-                self.body_frame = ttk.Frame(self)
-                self.body_frame.pack(fill=tk.BOTH, expand=True, padx=12, pady=8)
-                self.left_panel = ttk.Frame(self.body_frame)
-                self.left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 8))
-                self.right_panel = ttk.Frame(self.body_frame)
-                self.right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
-                self.status_var = tk.StringVar(value="ready")
-                status = ttk.Label(self, textvariable=self.status_var, anchor="w")
-                status.pack(fill=tk.X, side=tk.BOTTOM, padx=8, pady=6)
-                self.output_box = tk.Text(self.right_panel, wrap="word", state="normal")
-                self.output_box.pack(fill=tk.BOTH, expand=True)
+        def createchrome(self):
+            self.headervar = tk.StringVar(value="Welcome")
+            header = ttk.Label(self, textvariable=self.headervar, font=("Segoe UI", 16, "bold"))
+            header.pack(fill=tk.X, padx=12, pady=8)
+            menubar = tk.Menu(self)
+            filemenu = tk.Menu(menubar, tearoff=0)
+            filemenu.add_command(label="Open Data Folder", command=self.opendatafolder)
+            filemenu.add_separator()
+            filemenu.add_command(label="Exit", command=self.onclose)
+            menubar.add_cascade(label="File", menu=filemenu)
+            helpmenu = tk.Menu(menubar, tearoff=0)
+            helpmenu.add_command(label="About", command=lambda: messagebox.showinfo("About", "EduTrack — simplified education tracker"))
+            menubar.add_cascade(label="Help", menu=helpmenu)
+            try:
+                self.config(menu=menubar)
+            except Exception:
+                pass
+            self.body = ttk.Frame(self)
+            self.body.pack(fill=tk.BOTH, expand=True, padx=12, pady=8)
+            self.statusvar = tk.StringVar(value="Ready")
+            status = ttk.Label(self, textvariable=self.statusvar, anchor="w")
+            status.pack(fill=tk.X, side=tk.BOTTOM, padx=8, pady=6)
 
-        def _clear_body(self):
-            for w in list(self.body_frame.winfo_children()):
+        def clearbody(self):
+            for w in list(self.body.winfo_children()):
                 w.destroy()
 
-        def _show_login(self):
-            self.header_var.set("login")
-            self.status_var.set("login screen")
-            self._clear_body()
-            frm = ttk.Frame(self.body_frame)
+        def showlogin(self):
+            self.headervar.set("Login")
+            self.statusvar.set("Login screen")
+            self.clearbody()
+            frm = ttk.Frame(self.body)
             frm.pack(pady=20)
-            ttk.Label(frm, text="username").grid(row=0, column=0, sticky="w", pady=6)
-            ttk.Label(frm, text="password").grid(row=1, column=0, sticky="w", pady=6)
-            user_var = tk.StringVar()
-            pwd_var = tk.StringVar()
-            user_entry = ttk.Entry(frm, textvariable=user_var)
-            pwd_entry = ttk.Entry(frm, textvariable=pwd_var, show="*")
-            user_entry.grid(row=0, column=1, padx=8)
-            pwd_entry.grid(row=1, column=1, padx=8)
-            btn_frame = ttk.Frame(frm)
-            btn_frame.grid(row=2, column=0, columnspan=2, pady=12)
-            ttk.Button(btn_frame, text="login", command=lambda: self._on_login(user_var.get().strip(), pwd_var.get().strip())).pack(side=tk.LEFT, padx=6)
-            ttk.Button(btn_frame, text="exit", command=self._on_close).pack(side=tk.LEFT, padx=6)
-            ttk.Button(frm, text="forget password?", command=self._show_forget_password).grid(row=3, column=0, columnspan=2, pady=6)
+            ttk.Label(frm, text="Username").grid(row=0, column=0, sticky="w", pady=6)
+            ttk.Label(frm, text="Password").grid(row=1, column=0, sticky="w", pady=6)
+            self.usernamevar = tk.StringVar()
+            self.passwordvar = tk.StringVar()
+            userentry = ttk.Entry(frm, textvariable=self.usernamevar)
+            pwentry = ttk.Entry(frm, textvariable=self.passwordvar, show="*")
+            userentry.grid(row=0, column=1, padx=8)
+            pwentry.grid(row=1, column=1, padx=8)
+            btnrow = ttk.Frame(frm)
+            btnrow.grid(row=2, column=0, columnspan=2, pady=12)
+            ttk.Button(btnrow, text="Login", command=self.onlogin).pack(side=tk.LEFT, padx=6)
+            ttk.Button(btnrow, text="Exit", command=self.onclose).pack(side=tk.LEFT, padx=6)
+            ttk.Button(frm, text="Forgot password?", command=lambda: messagebox.showinfo("Forgot Password", "Use CLI 'Forgot password' in main.py or contact admin.")).grid(row=3, column=0, columnspan=2, pady=6)
+            try:
+                self.users = login.load_users()
+            except Exception:
+                self.users = None
 
-        def _show_forget_password(self):
-            messagebox.showinfo("Forget Password", "Please contact the administrator to reset your password or check your registered email for reset instructions.")
+        def onlogin(self):
+            uname = (self.usernamevar.get() or "").strip()
+            pwd = (self.passwordvar.get() or "").strip()
+            if not uname or not pwd:
+                messagebox.showerror("Login failed", "Username and password are required.")
+                return
+            users = self.users or login.load_users()
+            uobj = users.find(uname) if users else None
+            if not uobj:
+                messagebox.showerror("Login failed", "User not found.")
+                return
+            try:
+                ok = login.hmac.compare_digest(login.make_hash(pwd, uobj.salt), uobj.pwd_hash)
+            except Exception:
+                ok = False
+            if not ok:
+                messagebox.showerror("Login failed", "Wrong password.")
+                return
+            self.user = uname
+            self.role = uobj.role
+            self.roll = subject.lookupRollNumber(uname, self.role)
+            self.headervar.set(f"User: {self.user} ({self.role})")
+            self.showmainmenu()
 
-        def _on_login(self, username, password):
-            self.user = username or "guest"
-            self.header_var.set(f"user: {self.user}")
-            self._show_main_menu()
-
-        def _show_main_menu(self):
-            self.header_var.set(f"dashboard - {self.user}")
-            self.status_var.set("dashboard")
-            self._clear_body()
-            frm = ttk.Frame(self.body_frame)
-            frm.pack(fill=tk.BOTH, expand=True)
-            left = ttk.Frame(frm)
-            left.pack(side=tk.LEFT, fill=tk.Y, padx=8, pady=8)
-            right = ttk.Frame(frm)
-            right.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=8, pady=8)
-
-            # Determine role (admin, teacher, student)
-            role = getattr(self, 'role', None)
-            if not role and hasattr(self, 'user'):
-                # Guess role from username (fallback)
-                if self.user.lower().startswith('a'):
-                    role = 'admin'
-                elif self.user.lower().startswith('t'):
-                    role = 'teacher'
-                else:
-                    role = 'student'
-                self.role = role
-
-            # Button definitions for each role
-            admin_buttons = [
-                ("Add Subject", lambda: self._run_and_output(subject.add_subject)),
-                ("List Subjects", lambda: self._run_and_output(subject.list_subjects)),
-                ("Create Section", lambda: self._run_and_output(section.create_section)),
-                ("List Sections", lambda: self._run_and_output(section.list_sections)),
-                ("Assign Section to Student", lambda: self._run_and_output(section.assign_section_from_list)),
-                ("Assign Sections to Teacher", lambda: self._run_and_output(section.assign_section_to_teacher)),
-                ("Set/Update Exam Dates", lambda: self._run_and_output(lambda: __import__('exam_date').setExamDatesAdmin())),
-                ("View All Exam Dates", lambda: self._run_and_output(lambda: __import__('exam_date').viewAllExamDates())),
-                ("View Section Assignments", lambda: self._run_and_output(section.view_section_assignments)),
-            ]
-            teacher_buttons = [
-                ("View My Sections", lambda: self._run_and_output(lambda: self._append_output(section.view_my_sections(self.user)))),
-                ("Mark Attendance", lambda: self._run_and_output(self._mark_attendance_dialog)),
-                ("Update Attendance", lambda: self._run_and_output(self._update_attendance_dialog)),
-                ("View Attendance Chart", lambda: self._run_and_output(lambda: attendance.view_attendance(teachername=self.user))),
-                ("Add Topic Covered", lambda: self._run_and_output(lambda: __import__('topics').add_topic(self.user))),
-                ("View Topics Covered", lambda: self._run_and_output(lambda: self._append_output("See topics in topics.json"))),
-                ("View Submitted Assignments", lambda: self._run_and_output(lambda: assignments.view_assignments(self.user))),
-            ]
-            student_buttons = [
-                ("View Dashboard", lambda: self._run_and_output(lambda: self._append_output(f"Dashboard for {self.user}"))),
-                ("View My Exam Schedule", lambda: self._run_and_output(lambda: __import__('exam_date').viewStudentExamSchedule(self.user))),
-                ("View My Attendance", lambda: self._run_and_output(lambda: attendance.view_attendance(student_roll=self.user))),
-                ("View Attendance Summary", lambda: self._run_and_output(lambda: attendance.get_student_attendance_summary(self.user))),
-                ("View Topics Covered", lambda: self._run_and_output(lambda: __import__('topics').view_topics_for_student(self.user))),
-                ("Submit Assignment PDF", lambda: self._run_and_output(self._submit_assignment_dialog)),
-            ]
-
-
-            # Add a View Dashboard button for all roles
-            ttk.Button(left, text="View Dashboard", width=28, command=lambda: self._append_output(f"Dashboard for {self.user} ({role})")).pack(pady=4)
-
-            # Add role-specific buttons
-            if role == 'admin':
-                for label, cmd in admin_buttons:
-                    ttk.Button(left, text=label, width=28, command=cmd).pack(pady=4)
-            elif role == 'teacher':
-                for label, cmd in teacher_buttons:
-                    ttk.Button(left, text=label, width=28, command=cmd).pack(pady=4)
+        def showmainmenu(self):
+            self.headervar.set(f"Dashboard — {getattr(self, 'user', 'guest')}")
+            self.statusvar.set("Dashboard")
+            self.clearbody()
+            container = ttk.Frame(self.body)
+            container.pack(fill=tk.BOTH, expand=True)
+            leftspace = ttk.Frame(container)
+            leftspace.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            centercol = ttk.Frame(container)
+            centercol.pack(side=tk.LEFT)
+            rightpanel = ttk.Frame(container)
+            rightpanel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=8, pady=8)
+            panel = ttk.Frame(centercol)
+            panel.pack(padx=8, pady=8)
+            ttk.Button(panel, text="View Dashboard", width=28, command=self.viewdashboard).pack(pady=4)
+            ttk.Button(panel, text="Attendance Graph", width=28, command=self.showattendancegraph).pack(pady=4)
+            if self.role == "admin":
+                self.addadmin(panel)
+            elif self.role == "teacher":
+                self.addteacher(panel)
             else:
-                for label, cmd in student_buttons:
-                    ttk.Button(left, text=label, width=28, command=cmd).pack(pady=4)
+                self.addstudent(panel)
+            ttk.Button(panel, text="Open Data Folder", width=28, command=self.opendatafolder).pack(pady=4)
+            ttk.Button(panel, text="Logout", width=28, command=self.showlogin).pack(pady=8)
+            ttk.Button(panel, text="Exit", width=28, command=self.onclose).pack()
+            self.outputbox = tk.Text(rightpanel, wrap="word")
+            self.outputbox.pack(fill=tk.BOTH, expand=True)
 
-            # Common buttons
-            ttk.Button(left, text="Open Data Folder", width=28, command=self._open_data_folder).pack(pady=4)
-            ttk.Button(left, text="Logout", width=28, command=self._show_login).pack(pady=8)
-            ttk.Button(left, text="Exit", width=28, command=self._on_close).pack()
+        def viewdashboard(self):
+            roll = self.ensureroll()
+            sec = section.getSectionForRoll(roll) if roll else "Not assigned"
+            self.appendoutput(f"Dashboard\nUser: {self.user} ({self.role})\nRoll: {roll or 'N/A'}\nSection: {sec}")
 
-            self.output_box = tk.Text(right, wrap="word")
-            self.output_box.pack(fill=tk.BOTH, expand=True)
+        def ensureroll(self):
+            if getattr(self, "roll", None):
+                return self.roll
+            created = subject.getRollNumber(self.user, self.role, create_if_missing=True)
+            self.roll = created
+            return created
 
-        def _run_and_output(self, func):
-            """Run a function and append its output to the output box."""
-            import io
-            import contextlib
+        def addadmin(self, parent):
+            btns = [
+                ("Add Subject", lambda: self.runandcapture(subject.addSubject)),
+                ("List Subjects", lambda: self.runandcapture(subject.listSubjects)),
+                ("Create Section", lambda: self.runandcapture(section.createSection)),
+                ("List Sections", lambda: self.runandcapture(section.listSections)),
+                ("Assign Section to Student", lambda: self.runandcapture(section.assignSectionFromList)),
+                ("Assign Sections to Teacher", lambda: self.runandcapture(section.assignSectionToTeacher)),
+                ("Set/Update Exam Dates", lambda: self.runandcapture(exam_date.setExamDatesAdmin)),
+                ("View All Exam Dates", lambda: self.runandcapture(exam_date.viewAllExamDates)),
+                ("View Section Assignments", lambda: self.runandcapture(section.viewSectionAssignments)),
+            ]
+            for label, cmd in btns:
+                ttk.Button(parent, text=label, width=28, command=cmd).pack(pady=4)
+
+        def addteacher(self, parent):
+            ttk.Button(parent, text="View My Sections", width=28, command=lambda: self.runandcapture(lambda: section.viewMySections(self.user))).pack(pady=4)
+            ttk.Button(parent, text="Mark Attendance", width=28, command=self.markattendancedialog).pack(pady=4)
+            ttk.Button(parent, text="Update Attendance", width=28, command=self.updateattendancedialog).pack(pady=4)
+            ttk.Button(parent, text="View Attendance Chart", width=28, command=lambda: self.runandcapture(lambda: attendance.view_attendance(teachername=self.user))).pack(pady=4)
+            ttk.Button(parent, text="Add Topic Covered", width=28, command=lambda: self.runandcapture(lambda: topics.add_topic(self.user))).pack(pady=4)
+            ttk.Button(parent, text="View Topics Covered", width=28, command=self.viewmytopics).pack(pady=4)
+            ttk.Button(parent, text="View Submitted Assignments", width=28, command=lambda: self.runandcapture(lambda: assignments.view_assignments(self.user))).pack(pady=4)
+
+        def addstudent(self, parent):
+            ttk.Button(parent, text="View My Exam Schedule", width=28, command=self.viewmyexamschedule).pack(pady=4)
+            ttk.Button(parent, text="View My Attendance", width=28, command=self.viewmyattendance).pack(pady=4)
+            ttk.Button(parent, text="View Attendance Summary", width=28, command=self.viewmyattendancesummary).pack(pady=4)
+            ttk.Button(parent, text="View Topics Covered", width=28, command=self.viewmytopicsasstudent).pack(pady=4)
+            ttk.Button(parent, text="Submit Assignment PDF", width=28, command=self.submitassignmentdialog).pack(pady=4)
+
+        def runandcapture(self, func):
             buf = io.StringIO()
-            try:
-                with contextlib.redirect_stdout(buf):
-                    func()
-            except Exception as e:
-                self._append_output(f"error: {e}")
-            out = buf.getvalue()
-            if out.strip():
-                self._append_output(out.strip())
+            def job():
+                try:
+                    with contextlib.redirect_stdout(buf):
+                        func()
+                except Exception as e:
+                    self.appendoutput(f"Error: {e}")
+            def done():
+                out = buf.getvalue()
+                if out.strip():
+                    self.appendoutput(out.strip())
+            runbg(job, ondone=done)
 
-        def _mark_attendance_dialog(self):
+        def appendoutput(self, text):
+            try:
+                self.outputbox.insert("end", str(text) + "\n")
+                self.outputbox.see("end")
+            except Exception:
+                pass
+
+        def setstatus(self, text):
+            try:
+                self.statusvar.set(text)
+            except Exception:
+                pass
+
+        def markattendancedialog(self):
             roll = simpledialog.askstring("Mark Attendance", "Enter student roll number:")
-            subject_code = simpledialog.askstring("Mark Attendance", "Enter subject code:")
-            if not roll or not subject_code:
-                self._append_output("Roll number and subject code required.")
+            code = simpledialog.askstring("Mark Attendance", "Enter subject code:")
+            if not roll or not code:
+                self.appendoutput("Roll number and subject code required.")
                 return
-            attendance.mark_attendance(self.user, roll, subject_code)
+            self.runandcapture(lambda: attendance.mark_attendance(self.user, roll, code))
 
-        def _update_attendance_dialog(self):
+        def updateattendancedialog(self):
             roll = simpledialog.askstring("Update Attendance", "Enter student roll number:")
-            subject_code = simpledialog.askstring("Update Attendance", "Enter subject code:")
-            if not roll or not subject_code:
-                self._append_output("Roll number and subject code required.")
+            code = simpledialog.askstring("Update Attendance", "Enter subject code:")
+            if not roll or not code:
+                self.appendoutput("Roll number and subject code required.")
                 return
-            attendance.update_attendance(self.user, roll, subject_code)
+            self.runandcapture(lambda: attendance.update_attendance(self.user, roll, code))
 
-        def _submit_assignment_dialog(self):
-            pdf_path = filedialog.askopenfilename(title="Select PDF to submit")
-            if not pdf_path:
-                self._append_output("No file selected.")
+        def submitassignmentdialog(self):
+            roll = self.ensureroll()
+            if not roll:
+                self.appendoutput("No roll number found. Ask admin to create your account.")
                 return
-            assignments.submit_assignment(self.user, pdf_path)
+            pdfpath = filedialog.askopenfilename(title="Select PDF to submit")
+            if not pdfpath:
+                self.appendoutput("No file selected.")
+                return
+            self.runandcapture(lambda: assignments.submit_assignment(roll, pdfpath))
 
-        def _append_output(self, text):
+        def viewmyexamschedule(self):
+            roll = self.ensureroll()
+            sec = section.getSectionForRoll(roll) if roll else "Not assigned"
+            if sec == "Not assigned":
+                self.appendoutput("Section not assigned.")
+                return
+            self.runandcapture(lambda: exam_date.viewSectionExamDates(sec))
+
+        def viewmyattendance(self):
+            roll = self.ensureroll()
+            if not roll:
+                self.appendoutput("No roll number found.")
+                return
+            self.runandcapture(lambda: attendance.view_attendance(student_roll=roll))
+
+        def viewmyattendancesummary(self):
+            roll = self.ensureroll()
+            if not roll:
+                self.appendoutput("No roll number found.")
+                return
+            self.runandcapture(lambda: attendance.get_student_attendance_summary(roll))
+
+        def viewmytopicsasstudent(self):
+            roll = self.ensureroll()
+            if not roll:
+                self.appendoutput("No roll number found.")
+                return
+            self.runandcapture(lambda: topics.view_topics_for_student(roll))
+
+        def viewmytopics(self):
+            temap = topics.load_teacher_sections()
+            secs = temap.get(self.user, [])
+            if not secs:
+                self.appendoutput("No sections assigned to you.")
+                return
+            data = topics.load_json(topics.TOPICS_FILE)
+            anyprint = False
+            for sec in secs:
+                entries = data.get(sec) or []
+                if entries:
+                    self.appendoutput(f"\nTopics for section {sec}:")
+                    for i, t in enumerate(entries, 1):
+                        self.appendoutput(f" {i}. {t.get('topic')} (by {t.get('teacher')} on {t.get('date')})")
+                    anyprint = True
+            if not anyprint:
+                self.appendoutput("No topics recorded yet for your sections.")
+
+        def showattendancegraph(self):
             try:
-                import threading as _thr
-                if _thr.current_thread().name != 'MainThread':
-                    self.after(0, lambda: self._append_output(text))
+                import json
+                from collections import defaultdict
+                p = path("attendance_master.json")
+                with open(p, "r", encoding="utf-8") as fh:
+                    am = json.load(fh)
+                records = am.get("attendance_records", {})
+                agg = defaultdict(list)
+                for info in records.values():
+                    subs = info.get("subjects", {})
+                    for s in subs.values():
+                        name = s.get("subject_name") or ""
+                        try:
+                            perc = float(s.get("attendance_percentage", 0.0) or 0.0)
+                        except Exception:
+                            perc = 0.0
+                        if name:
+                            agg[name].append(perc)
+                if not agg:
+                    self.appendoutput("No attendance data to plot.")
                     return
-            except Exception:
-                pass
+                labels = list(agg.keys())
+                values = [sum(agg[l]) / len(agg[l]) if len(agg[l]) else 0.0 for l in labels]
+            except Exception as e:
+                self.appendoutput(f"Error preparing attendance data: {e}")
+                return
             try:
-                self.output_box.insert("end", str(text) + "\n")
-                self.output_box.see("end")
+                import matplotlib
+                matplotlib.use('TkAgg')
+                import matplotlib.pyplot as plt
+                from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
             except Exception:
-                pass
-
-        def _set_status(self, text):
+                self.appendoutput("matplotlib is required to show graphs. Install with: pip install matplotlib")
+                return
             try:
-                import threading as _thr
-                if _thr.current_thread().name != 'MainThread':
-                    self.after(0, lambda: self._set_status(text))
-                    return
-            except Exception:
-                pass
-            try:
-                self.status_var.set(text)
-            except Exception:
-                pass
-
-        def _on_subjects(self):
-            self.status_var.set("loading subjects")
-            def job():
+                plt.style.use('seaborn-whitegrid')
+                cmap = plt.get_cmap('tab10')
+                colors = [cmap(i % cmap.N) for i in range(len(labels))]
+                pairs = sorted(zip(labels, values), key=lambda x: x[1], reverse=True)
+                labels_sorted = [p[0] for p in pairs]
+                values_sorted = [p[1] for p in pairs]
+                many = len(labels_sorted) > 12
+                fig_height = 5 if not many else max(6, 0.35 * len(labels_sorted))
+                fig, ax = plt.subplots(figsize=(10, fig_height), facecolor='white')
+                fig.patch.set_facecolor('white')
+                if many:
+                    y_pos = list(range(len(labels_sorted)))
+                    bars = ax.barh(y_pos, values_sorted, color=colors)
+                    ax.set_yticks(y_pos)
+                    ax.set_yticklabels(labels_sorted, fontsize=10)
+                    ax.set_xlabel('Average Attendance (%)', fontsize=12)
+                    ax.set_xlim(0, 100)
+                    for b, v in zip(bars, values_sorted):
+                        ax.text(b.get_width() + 1, b.get_y() + b.get_height()/2, f"{v:.1f}%", va='center', fontsize=9)
+                else:
+                    bars = ax.bar(labels_sorted, values_sorted, color=colors)
+                    ax.set_ylabel('Average Attendance (%)', fontsize=12)
+                    ax.set_ylim(0, 100)
+                    plt.setp(ax.get_xticklabels(), rotation=35, ha='right', fontsize=10)
+                    for b, v in zip(bars, values_sorted):
+                        ax.text(b.get_x() + b.get_width()/2, v + 1, f"{v:.1f}%", ha='center', va='bottom', fontsize=9)
+                ax.grid(axis='y', color='#f0f0f0')
+                ax.set_title('Average Attendance per Subject', fontsize=14, weight='bold')
+                fig.tight_layout()
+                if all(v == 0 for v in values_sorted):
+                    ax.text(0.5, 0.5, 'All attendance percentages are 0\n(try marking attendance first)', ha='center', va='center', transform=ax.transAxes, fontsize=12, color='#666666')
+                win = tk.Toplevel(self)
+                win.title('Attendance Graph')
+                canvas = FigureCanvasTkAgg(fig, master=win)
+                canvas.draw()
+                canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
                 try:
-                    subjects = subject.list_subjects()
-                    if not subjects:
-                        self._append_output("no subjects found")
-                        return
-                    self._append_output("subjects:")
-                    for s in subjects:
-                        name = s.get("name") if isinstance(s, dict) else str(s)
-                        code = s.get("code","") if isinstance(s, dict) else ""
-                        self._append_output(f"- {name} ({code})")
-                except Exception as e:
-                    self._append_output(f"error: {e}")
-            threading.Thread(target=job, daemon=True).start()
+                    toolbar = NavigationToolbar2Tk(canvas, win)
+                    toolbar.update()
+                    toolbar.pack(side=tk.BOTTOM, fill=tk.X)
+                except Exception:
+                    pass
+            except Exception as e:
+                self.appendoutput(f"Error rendering graph: {e}")
 
-        def _on_attendance(self):
-            choices = ["view by roll", "update by file"]
-            choice = simpledialog.askstring("attendance", "enter option: view by roll / update")
-            if not choice:
-                return
-            if choice.lower().startswith("view"):
-                roll = simpledialog.askstring("attendance", "enter student roll")
-                if not roll:
-                    return
-                def job():
-                    try:
-                        attendance.view_attendance(student_roll=roll)
-                        self._append_output(f"viewed attendance for {roll}")
-                    except Exception as e:
-                        self._append_output(f"error: {e}")
-                threading.Thread(target=job, daemon=True).start()
-            else:
-                teacher = simpledialog.askstring("attendance", "enter teacher username")
-                if not teacher:
-                    return
-                roll = simpledialog.askstring("attendance", "enter student roll")
-                if not roll:
-                    return
-                subject_code = simpledialog.askstring("attendance", "enter subject code or name")
-                if not subject_code:
-                    return
-                def job2():
-                    try:
-                        attendance.update_attendance(teacher, roll, subject_code)
-                        self._append_output(f"updated attendance for {roll} - {subject_code}")
-                    except Exception as e:
-                        self._append_output(f"error: {e}")
-                threading.Thread(target=job2, daemon=True).start()
+        def opendatafolder(self):
+            folder = projectroot()
+            try:
+                if sys.platform.startswith("win"):
+                    os.startfile(folder)  
+                elif sys.platform == "darwin":
+                    os.system(f'open "{folder}"')
+                else:
+                    os.system(f'xdg-open "{folder}"')
+            except Exception:
+                self.appendoutput(f"Data folder: {folder}")
 
-        def _on_assignments(self):
-            choice = simpledialog.askstring("assignments", "enter option: submit / view")
-            if not choice:
-                return
-            if choice.lower().startswith("submit"):
-                sid = simpledialog.askstring("submit", "enter student id")
-                if not sid:
-                    return
-                path = filedialog.askopenfilename(title="select pdf")
-                if not path:
-                    return
-                def job():
-                    try:
-                        assignments.submit_assignment(sid, path)
-                        self._append_output(f"submitted assignment for {sid}")
-                    except Exception as e:
-                        self._append_output(f"error: {e}")
-                threading.Thread(target=job, daemon=True).start()
-            else:
-                tname = simpledialog.askstring("view", "enter teacher name")
-                if not tname:
-                    return
-                def job2():
-                    try:
-                        assignments.view_assignments(tname)
-                        self._append_output(f"viewed assignments for {tname}")
-                    except Exception as e:
-                        self._append_output(f"error: {e}")
-                threading.Thread(target=job2, daemon=True).start()
-
-        def _on_sections(self):
-            def job():
-                try:
-                    secs = section.view_my_sections(self.user)
-                    self._append_output(f"sections for {self.user}: {secs}")
-                except Exception as e:
-                    self._append_output(f"error: {e}")
-            threading.Thread(target=job, daemon=True).start()
-
-        def _open_data_folder(self):
-            folder = this_dir
-            if sys.platform.startswith("win"):
-                os.startfile(folder)
-            elif sys.platform == "darwin":
-                os.system(f"open \"{folder}\"")
-            else:
-                os.system(f"xdg-open \"{folder}\"")
-
-        def _on_close(self):
+        def onclose(self):
             try:
                 self.destroy()
-            except:
+            except Exception:
                 pass
 
 else:
-    class app:
+    class edutrackapp:
         def __init__(self):
             raise RuntimeError(
-                "Tkinter is not available or failed to initialize on this system. "
-                "Original error: {}\n\nOn macOS, install Python from python.org or ensure Tcl/Tk is installed and compatible. "
-                "If you don't need the GUI, run command-line scripts directly.".format(repr(_TK_IMPORT_ERROR))
+                "Tkinter failed to initialize or is not available.\n"
+                f"Original error: {repr(tk_import_error)}\n\n"
+                "If you don't need the GUI, run CLI: python main.py"
             )
 
 if __name__ == "__main__":
-    a = app()
-    a.mainloop()
+    app = edutrackapp()
+    if tk_available:
+        app.mainloop()
