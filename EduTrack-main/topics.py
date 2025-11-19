@@ -4,12 +4,8 @@ from datetime import datetime
 
 TOPICS_FILE = "topics.json"
 TEACHER_SECTIONS_FILE = "teachersections.json"
-STUDENT_FILE = "students.json"  # used for student section lookup
+STUDENT_FILE = "students.json"
 SECTIONS_FILE = "sections.json"
-
-# -----------------------------------------------------------
-# Utility functions for file handling
-# -----------------------------------------------------------
 
 def load_json(filename):
     if not os.path.exists(filename):
@@ -24,23 +20,14 @@ def save_json(filename, data):
     with open(filename, "w") as f:
         json.dump(data, f, indent=2)
 
-# -----------------------------------------------------------
-# Load teacher sections (from teachersections.json)
-# -----------------------------------------------------------
-
 def load_teacher_sections():
     data = load_json(TEACHER_SECTIONS_FILE)
     return data if isinstance(data, dict) else {}
-
-# -----------------------------------------------------------
-# Add topics for the section(s) assigned to the teacher
-# -----------------------------------------------------------
 
 def add_topic(teacher_name):
     teacher_sections = load_teacher_sections()
     teacher_name_lower = teacher_name.lower()
 
-    # Find all sections assigned to this teacher
     assigned_sections = [
         sec for sec, tname in teacher_sections.items()
         if tname.lower() == teacher_name_lower
@@ -52,7 +39,6 @@ def add_topic(teacher_name):
 
     print(f"\nYou are assigned to section(s): {', '.join(assigned_sections)}")
 
-    # If multiple sections, let teacher choose one
     if len(assigned_sections) > 1:
         print("Select section to add topic:")
         for i, sec in enumerate(assigned_sections, 1):
@@ -72,7 +58,6 @@ def add_topic(teacher_name):
         return
 
     date = datetime.now().strftime("%d/%m/%Y")
-
     topics_data = load_json(TOPICS_FILE)
 
     if section not in topics_data:
@@ -87,12 +72,7 @@ def add_topic(teacher_name):
     save_json(TOPICS_FILE, topics_data)
     print(f"Topic '{topic}' added successfully for section {section} on {date}.")
 
-# -----------------------------------------------------------
-# Student: View topics for their section
-# -----------------------------------------------------------
-
 def view_topics_for_student(student_id):
-    # --- Step 1: Verify files exist ---
     if not os.path.exists("sections.json"):
         print("sections.json file not found.")
         return
@@ -100,7 +80,6 @@ def view_topics_for_student(student_id):
         print("topics.json file not found.")
         return
 
-    # --- Step 2: Load student's section from sections.json ---
     with open("sections.json", "r") as f:
         sections_data = json.load(f)
 
@@ -109,7 +88,6 @@ def view_topics_for_student(student_id):
         print("You are not assigned to any section.")
         return
 
-    # --- Step 3: Load topics for that section from topics.json ---
     with open("topics.json", "r") as f:
         topics_data = json.load(f)
 
@@ -118,7 +96,6 @@ def view_topics_for_student(student_id):
         print(f"No topics found for your section ({student_section}).")
         return
 
-    # --- Step 4: Display topics in a clean format ---
     print(f"\nTopics covered in your section ({student_section}):\n")
     for idx, topic_entry in enumerate(section_topics, start=1):
         teacher = topic_entry.get("teacher", "Unknown")
@@ -127,9 +104,6 @@ def view_topics_for_student(student_id):
         print(f"{idx}. {teacher} — {topic} ({date})")
     print("\nEnd of list.\n")
 
-# -----------------------------------------------------------
-# Standalone test
-# -----------------------------------------------------------
 if __name__ == "__main__":
     print("1. Add topic (Teacher)")
     print("2. View topics (Student)")

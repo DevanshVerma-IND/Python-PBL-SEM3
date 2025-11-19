@@ -3,7 +3,7 @@ import attendance
 import subject
 import section
 import topics
-import assignments  # ← add this at top with other imports
+import assignments  
 
 
 def viewAttendance():

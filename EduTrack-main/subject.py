@@ -49,7 +49,6 @@ def listSubjects():
 def getRollNumber(name, role="student"):
     db = loadJson(rollnumbersFile, {})
     
-    # Initialize proper structure if not present
     if not isinstance(db, dict) or "map" not in db or "counters" not in db:
         db = {
             "map": {
@@ -64,11 +63,9 @@ def getRollNumber(name, role="student"):
             }
         }
     
-    # Check if user already exists
     if name in db["map"].get(role, {}):
         return db["map"][role][name]
     
-    # Generate new roll number
     db["counters"][role] = db["counters"].get(role, 0) + 1
     n = db["counters"][role]
     
