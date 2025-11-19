@@ -1,24 +1,38 @@
 import os
 import sys
 import threading
-import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog, filedialog
 import subject
 import attendance
 import assignments
 import section
 
+# tkinter may not be available or may crash on some macOS/Python builds.
+# Try importing it and fall back to a clear error at runtime if unavailable.
+try:
+    import tkinter as tk
+    from tkinter import ttk, messagebox, simpledialog, filedialog
+    _TK_AVAILABLE = True
+except Exception as _tk_err:
+    tk = None
+    ttk = None
+    messagebox = None
+    simpledialog = None
+    filedialog = None
+    _TK_AVAILABLE = False
+    _TK_IMPORT_ERROR = _tk_err
+
 this_dir = os.path.dirname(os.path.abspath(__file__))
 os.chdir(this_dir)
 
-class app(tk.Tk):
-    def __init__(self):
-        super().__init__()
-        self.title("edutrack")
-        self.geometry("800x520")
-        self.protocol("WM_DELETE_WINDOW", self._on_close)
-        self._create_widgets()
-        self._show_login()
+if _TK_AVAILABLE:
+    class app(tk.Tk):
+        def __init__(self):
+            super().__init__()
+            self.title("edutrack")
+            self.geometry("800x520")
+            self.protocol("WM_DELETE_WINDOW", self._on_close)
+            self._create_widgets()
+            self._show_login()
 
     def _create_widgets(self):
         self.header_var = tk.StringVar(value="welcome")
@@ -180,6 +194,15 @@ class app(tk.Tk):
             self.destroy()
         except:
             pass
+
+else:
+    class app:
+        def __init__(self):
+            raise RuntimeError(
+                "Tkinter is not available or failed to initialize on this system. "
+                "Original error: {}\n\nOn macOS, install Python from python.org or ensure Tcl/Tk is installed and compatible. "
+                "If you don't need the GUI, run command-line scripts directly.".format(repr(_TK_IMPORT_ERROR))
+            )
 
 if __name__ == "__main__":
     a = app()

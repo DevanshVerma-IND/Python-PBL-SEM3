@@ -1,6 +1,5 @@
 import os
 import shutil
-import fitz
 import json
 
 SECTIONS_FILE = "sections.json"
@@ -71,6 +70,11 @@ def view_pdf_content(pdf_path, page_number=None):
     try:
         if not os.path.exists(pdf_path):
             print("File not found.")
+            return
+        try:
+            import fitz
+        except Exception:
+            print("PyMuPDF (fitz) is not installed. Install with `pip install PyMuPDF` to view PDF contents.")
             return
 
         doc = fitz.open(pdf_path)
