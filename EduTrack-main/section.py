@@ -1,6 +1,7 @@
 import os
 import json
 from datetime import datetime
+from datetime import date
 
 sectionListFile = "sectionlist.json"
 sectionsFile = "sections.json"
@@ -9,16 +10,24 @@ sectionSubjectsFile = "sectionsubjects.json"  # This is your existing file
 studentSubjectsFile = "studentsubjects.json"
 
 def loadJson(filename, default):
-    if not os.path.exists(filename):
+    # Resolve filename relative to project root (one level above this module),
+    # so JSON files placed next to the EduTrack-main folder are used.
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    filepath = os.path.join(base_dir, filename)
+    if not os.path.exists(filepath):
         return default
     try:
-        with open(filename, "r") as f:
+        with open(filepath, "r") as f:
             return json.load(f)
-    except:
+    except Exception:
         return default
 
 def saveJson(filename, data):
-    with open(filename, "w") as f:
+    # Save JSON relative to project root (one level above this module)
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    filepath = os.path.join(base_dir, filename)
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    with open(filepath, "w") as f:
         json.dump(data, f, indent=2)
 
 def getSubjectsForSection(section):
@@ -79,40 +88,106 @@ def listSections(returnList=False):
         print(f" {i}. {s}")
     return lst if returnList else None
 
+
+import json, os
+from datetime import date
+
 def assignSectionFromList():
-    lst = listSections(returnList=True)
-    if not lst:
-        return
-    num = input("Choose section number to assign: ").strip()
-    if not num.isdigit():
-        print("Invalid choice.")
-        return
-    idx = int(num) - 1
-    if not (0 <= idx < len(lst)):
-        print("Invalid section number.")
-        return
-    roll = input("Enter student roll no: ").strip()
-    if not roll:
-        print("Invalid roll no.")
-        return
-    mapping = loadJson(sectionsFile, {})
-    section_name = lst[idx]
-    mapping[roll] = section_name
-    saveJson(sectionsFile, mapping)
-    
-    # Update studentsubjects.json
-    student_subjects = loadJson(studentSubjectsFile, {})
-    subjects = getSubjectsForSection(section_name)  # Get from sectionsubjects.json
-    student_subjects[roll] = {
-        "section": section_name,
-        "subjects": subjects
-    }
-    saveJson(studentSubjectsFile, student_subjects)
-    
-    # Initialize attendance
-    initialize_attendance_for_student(roll, section_name)
-    
-    print(f"Assigned section {section_name} to {roll}.")
+    try:
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+        def load_json(fname, default):
+            path = os.path.join(base_dir, fname)
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            return default
+
+        def save_json(fname, data):
+            path = os.path.join(base_dir, fname)
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+
+        # Load required JSON files
+        rollnumbers = load_json("rollnumbers.json", {})
+        sections = load_json("sections.json", {})
+        sectionsubjects = load_json("sectionsubjects.json", {})
+        studentsubjects = load_json("studentsubjects.json", {})
+        attendance_master = load_json("attendance_master.json", {"attendance_records": {}, "metadata": {}})
+
+        student_map = rollnumbers.get("map", {}).get("student", {})
+        if not student_map:
+            print("No students found in rollnumbers.json")
+            return
+
+        print("\n--- Assign Section to Student ---")
+        for nm, rv in student_map.items():
+            current_section = sections.get(rv, "Not Assigned")
+            print(f"{rv} - {nm} (Section: {current_section})")
+
+        roll = input("\nEnter student roll number to assign section: ").strip()
+        if roll not in student_map.values():
+            print("Invalid roll number.")
+            return
+
+        student_name = next((n for n, r in student_map.items() if r == roll), roll)
+        section_choice = input(f"Enter section name to assign for {student_name} ({roll}): ").strip()
+
+        if not section_choice:
+            print("Section name cannot be empty.")
+            return
+
+        # --- Update sections.json ---
+        sections[roll] = section_choice
+        save_json("sections.json", sections)
+        print(f"Assigned section '{section_choice}' to student with roll number {roll} successfully!")
+
+        # --- Get subjects for this section ---
+        subjects = sectionsubjects.get(section_choice)
+        if not subjects or not isinstance(subjects, list):
+            print(f"Section '{section_choice}' not found in sectionsubjects.json or has no subjects.")
+            return
+
+        # --- Update studentsubjects.json ---
+        studentsubjects[roll] = {
+            "section": section_choice,
+            "subjects": subjects
+        }
+        save_json("studentsubjects.json", studentsubjects)
+        print(f"Updated studentsubjects.json for {roll}")
+
+        # --- Update attendance_master.json ---
+        attendance_records = attendance_master.get("attendance_records", {})
+        if roll not in attendance_records:
+            subjects_dict = {
+                sub: {
+                    "subject_name": sub,
+                    "total_working_days": 0,
+                    "total_present_days": 0,
+                    "attendance_percentage": 0.0,
+                    "last_updated": str(date.today())
+                }
+                for sub in subjects
+            }
+            attendance_records[roll] = {
+                "name": student_name,
+                "section": section_choice,
+                "subjects": subjects_dict
+            }
+            print(f"Attendance record created for roll {roll}")
+        else:
+            attendance_records[roll]["section"] = section_choice
+            print(f"Updated existing attendance record for roll {roll}")
+
+        attendance_master["attendance_records"] = attendance_records
+        attendance_master.setdefault("metadata", {})
+        attendance_master["metadata"]["last_updated"] = str(date.today())
+        attendance_master["metadata"]["total_students"] = len(attendance_records)
+        save_json("attendance_master.json", attendance_master)
+
+    except Exception as e:
+        print("Error while assigning section:", e)
+
 
 def assignSectionToTeacher():
     lst = listSections(returnList=True)
