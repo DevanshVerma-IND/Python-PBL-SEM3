@@ -539,17 +539,33 @@ class App:
 
     def student_view_topics(self):
         roll, sec = self.student_roll_and_section()
-        items = topics_map().get(sec, [])
+        sec = (str(sec or "Not assigned")).strip().upper()
         c = self.container("Topics Covered")
-        if not items:
-            self.v.label(c, f"No topics found for section {sec}.", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); return
-        cols = ("Date", "Teacher", "Topic")
-        tree = ttk.Treeview(c, columns=cols, show="headings", height=12)
-        for col in cols:
-            tree.heading(col, text=col); tree.column(col, anchor="center", width=220)
-        tree.pack(fill="both", expand=True)
-        for item in items:
-            tree.insert("", "end", values=(item.get("date",""), item.get("teacher",""), item.get("topic","")))
+        self.v.label(c, f"Roll: {roll}", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", pady=4)
+        self.v.label(c, f"Section: {sec}", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", pady=4)
+
+        if sec == "NOT ASSIGNED" or not sec:
+            self.v.label(c, "You are not assigned to any section yet.", SMALL, NEUTRAL_GRAYBLUE, BG_PANEL, anchor="w").pack(fill="x", pady=8)
+            return
+
+        topics_db = load_json(PATH_TOPICS, {})
+        sec_topics = topics_db.get(sec, [])
+        if not sec_topics:
+            self.v.label(c, "No topics have been recorded for your section.", SMALL, NEUTRAL_GRAYBLUE, BG_PANEL, anchor="w").pack(fill="x", pady=8)
+            return
+
+        grouped = {}
+        for t in sec_topics:
+            subj = t.get("subject", "(unknown)").strip()
+            grouped.setdefault(subj, []).append(t)
+
+        for subj, items in grouped.items():
+            self.v.label(c, f"{subj}:", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", pady=(12,4))
+            for it in items:
+                date = it.get("date", "")
+                topictext = it.get("topic", "(no description)")
+                display = f"• {topictext}" + (f"  [{date}]" if date else "")
+                self.v.label(c, display, SMALL, NEUTRAL_GRAYBLUE, BG_PANEL, anchor="w").pack(fill="x", pady=2)
 
     def student_submit_assignment(self):
         roll, sec = self.student_roll_and_section()
@@ -1006,15 +1022,32 @@ class App:
 
     def teacher_add_topic(self):
         c = self.container("Add Topic Covered")
-        self.v.label(c, "Section", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); sec_ent = self.v.entry(c); sec_ent.pack(fill="x", pady=6)
-        self.v.label(c, "Topic", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); topic_ent = self.v.entry(c); topic_ent.pack(fill="x", pady=6)
-        self.v.label(c, "Date (DD/MM/YYYY)", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); date_ent = self.v.entry(c); date_ent.pack(fill="x", pady=6)
-        def save():
-            sec = sec_ent.get().strip().upper(); topic = topic_ent.get().strip(); date = date_ent.get().strip()
-            if not sec or not topic or not date: messagebox.showerror("Input", "All fields required."); return
-            data = topics_map(); data.setdefault(sec, []).append({"teacher": self.active_user, "topic": topic, "date": date})
-            save_json(PATH_TOPICS, data); messagebox.showinfo("Topic", "Added.")
-        self.v.button(c, "Save", save, SIDEBAR_BLUE).pack(pady=8)
+        self.v.label(c, "Section", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", pady=(6,4))
+        sec_ent = self.v.entry(c); sec_ent.pack(fill="x", pady=(0,8))
+        self.v.label(c, "Subject (name or code)", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", pady=(6,4))
+        subj_ent = self.v.entry(c); subj_ent.pack(fill="x", pady=(0,8))
+        self.v.label(c, "Topic description", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", pady=(6,4))
+        topic_ent = self.v.entry(c); topic_ent.pack(fill="x", pady=(0,12))
+
+        def save_topic():
+            sec = sec_ent.get().strip().upper()
+            subj = subj_ent.get().strip()
+            top = topic_ent.get().strip()
+            if not sec or not subj or not top:
+                messagebox.showerror("Missing Data", "Please enter section, subject and topic.")
+                return
+            topics_db = load_json(PATH_TOPICS, {})
+            topics_db.setdefault(sec, [])
+            topics_db[sec].append({
+                "subject": subj,
+                "topic": top,
+                "date": datetime.now().strftime("%Y-%m-%d")
+            })
+            save_json(PATH_TOPICS, topics_db)
+            messagebox.showinfo("Saved", f"Topic saved for section {sec}.")
+            sec_ent.delete(0, "end"); subj_ent.delete(0, "end"); topic_ent.delete(0, "end")
+
+        self.v.button(c, "Save Topic", save_topic, SIDEBAR_BLUE).pack(pady=10)
 
     def teacher_view_topics(self):
         c = self.container("Topics Covered")
