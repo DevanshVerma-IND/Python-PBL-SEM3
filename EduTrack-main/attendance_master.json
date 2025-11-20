@@ -1,7 +1,7 @@
 {
   "attendance_records": {
     "20250001": {
-      "name": "Ayush",
+      "name": "20250001",
       "section": "AI",
       "subjects": {
         "TMA101": {
@@ -42,7 +42,7 @@
       }
     },
     "20250003": {
-      "name": "Agam",
+      "name": "20250003",
       "section": "AI",
       "subjects": {
         "TMA101": {
@@ -83,7 +83,7 @@
       }
     },
     "20250004": {
-      "name": "Neha",
+      "name": "20250004",
       "section": "AI",
       "subjects": {
         "TMA101": {
@@ -124,7 +124,7 @@
       }
     },
     "20250005": {
-      "name": "Sunita",
+      "name": "20250005",
       "section": "AI",
       "subjects": {
         "TMA101": {
@@ -165,7 +165,7 @@
       }
     },
     "20250006": {
-      "name": "Mohan",
+      "name": "20250006",
       "section": "AI",
       "subjects": {
         "TMA101": {
@@ -206,7 +206,7 @@
       }
     },
     "20250007": {
-      "name": "Rohan",
+      "name": "20250007",
       "section": "AI",
       "subjects": {
         "TMA101": {
@@ -247,7 +247,7 @@
       }
     },
     "20250008": {
-      "name": "Sohan",
+      "name": "20250008",
       "section": "AI",
       "subjects": {
         "TMA101": {
@@ -288,7 +288,7 @@
       }
     },
     "20250009": {
-      "name": "Ravi",
+      "name": "20250009",
       "section": "AI",
       "subjects": {
         "TMA101": {
@@ -329,7 +329,7 @@
       }
     },
     "20250010": {
-      "name": "Sumit",
+      "name": "20250010",
       "section": "AI",
       "subjects": {
         "TMA101": {
@@ -370,7 +370,7 @@
       }
     },
     "20250011": {
-      "name": "Prem",
+      "name": "20250011",
       "section": "DV",
       "subjects": {
         "TEA501": {
@@ -411,7 +411,7 @@
       }
     },
     "20250012": {
-      "name": "Raj",
+      "name": "20250012",
       "section": "AIII",
       "subjects": {
         "TCS101": {
@@ -452,7 +452,7 @@
       }
     },
     "20250013": {
-      "name": "Amit",
+      "name": "20250013",
       "section": "AIII",
       "subjects": {
         "TCS101": {
@@ -493,7 +493,7 @@
       }
     },
     "20250014": {
-      "name": "Manoj",
+      "name": "20250014",
       "section": "AIII",
       "subjects": {
         "TCS101": {
@@ -534,7 +534,7 @@
       }
     },
     "20250015": {
-      "name": "Maulik",
+      "name": "20250015",
       "section": "AV",
       "subjects": {
         "TEA501": {
@@ -575,7 +575,7 @@
       }
     },
     "20250016": {
-      "name": "Suman",
+      "name": "20250016",
       "section": "AV",
       "subjects": {
         "TEA501": {
@@ -616,7 +616,7 @@
       }
     },
     "20250017": {
-      "name": "Satvik",
+      "name": "20250017",
       "section": "AV",
       "subjects": {
         "TEA501": {
@@ -657,7 +657,7 @@
       }
     },
     "20250018": {
-      "name": "Mukesh",
+      "name": "20250018",
       "section": "BI",
       "subjects": {
         "TMA101": {
@@ -698,7 +698,7 @@
       }
     },
     "20250019": {
-      "name": "Nitin",
+      "name": "20250019",
       "section": "BI",
       "subjects": {
         "TMA101": {
@@ -739,7 +739,7 @@
       }
     },
     "20250020": {
-      "name": "Neeraj",
+      "name": "20250020",
       "section": "BI",
       "subjects": {
         "TMA101": {
@@ -780,7 +780,7 @@
       }
     },
     "20250021": {
-      "name": "Abhay",
+      "name": "20250021",
       "section": "BIII",
       "subjects": {
         "TCS101": {
@@ -821,7 +821,7 @@
       }
     },
     "20250022": {
-      "name": "Prakash",
+      "name": "20250022",
       "section": "BIII",
       "subjects": {
         "TCS101": {
@@ -862,7 +862,7 @@
       }
     },
     "20250023": {
-      "name": "Gautum",
+      "name": "20250023",
       "section": "BIII",
       "subjects": {
         "TCS101": {
@@ -903,7 +903,7 @@
       }
     },
     "20250024": {
-      "name": "Pankaj",
+      "name": "20250024",
       "section": "BV",
       "subjects": {
         "TEA501": {
@@ -944,7 +944,7 @@
       }
     },
     "20250025": {
-      "name": "Ramesh",
+      "name": "20250025",
       "section": "BV",
       "subjects": {
         "TEA501": {
@@ -985,7 +985,7 @@
       }
     },
     "20250026": {
-      "name": "Hari",
+      "name": "20250026",
       "section": "BV",
       "subjects": {
         "TEA501": {
@@ -1026,7 +1026,7 @@
       }
     },
     "20250027": {
-      "name": "Raman",
+      "name": "20250027",
       "section": "CI",
       "subjects": {
         "TMA101": {
@@ -1067,7 +1067,7 @@
       }
     },
     "20250028": {
-      "name": "Jatin",
+      "name": "20250028",
       "section": "CI",
       "subjects": {
         "TMA101": {
@@ -1108,7 +1108,7 @@
       }
     },
     "20250029": {
-      "name": "Parul",
+      "name": "20250029",
       "section": "CI",
       "subjects": {
         "TMA101": {
@@ -1149,7 +1149,7 @@
       }
     },
     "20250030": {
-      "name": "Gopal",
+      "name": "20250030",
       "section": "CIII",
       "subjects": {
         "TCS101": {
@@ -1190,7 +1190,7 @@
       }
     },
     "20250031": {
-      "name": "Shilpa",
+      "name": "20250031",
       "section": "CIII",
       "subjects": {
         "TCS101": {
@@ -1231,7 +1231,7 @@
       }
     },
     "20250032": {
-      "name": "Yash",
+      "name": "20250032",
       "section": "CIII",
       "subjects": {
         "TCS101": {
@@ -1272,7 +1272,7 @@
       }
     },
     "20250033": {
-      "name": "Archit",
+      "name": "20250033",
       "section": "CV",
       "subjects": {
         "TEA501": {
@@ -1313,7 +1313,7 @@
       }
     },
     "20250034": {
-      "name": "Tamanna",
+      "name": "20250034",
       "section": "CV",
       "subjects": {
         "TEA501": {
@@ -1354,7 +1354,7 @@
       }
     },
     "20250035": {
-      "name": "Harish",
+      "name": "20250035",
       "section": "CV",
       "subjects": {
         "TEA501": {
@@ -1395,7 +1395,7 @@
       }
     },
     "20250036": {
-      "name": "Suchit",
+      "name": "20250036",
       "section": "DI",
       "subjects": {
         "TMA101": {
@@ -1436,7 +1436,7 @@
       }
     },
     "20250037": {
-      "name": "Bheem",
+      "name": "20250037",
       "section": "DI",
       "subjects": {
         "TMA101": {
@@ -1477,7 +1477,7 @@
       }
     },
     "20250038": {
-      "name": "Ishita",
+      "name": "20250038",
       "section": "DV",
       "subjects": {
         "TEA501": {
@@ -1518,7 +1518,7 @@
       }
     },
     "20250039": {
-      "name": "Ritesh",
+      "name": "20250039",
       "section": "DIII",
       "subjects": {
         "TCS101": {
@@ -1559,7 +1559,7 @@
       }
     },
     "20250040": {
-      "name": "Anshuldas",
+      "name": "20250040",
       "section": "DIII",
       "subjects": {
         "TCS101": {
@@ -1600,7 +1600,7 @@
       }
     },
     "20250041": {
-      "name": "Sukhminder",
+      "name": "20250041",
       "section": "DIII",
       "subjects": {
         "TCS101": {
@@ -1641,7 +1641,7 @@
       }
     },
     "20250047": {
-      "name": "Harshit",
+      "name": "20250049",
       "section": "DV",
       "subjects": {
         "TEA501": {
@@ -1682,7 +1682,7 @@
       }
     },
     "20250049": {
-      "name": "Ani",
+      "name": "20250049",
       "section": "DV",
       "subjects": {
         "TEA501": {
@@ -1723,7 +1723,7 @@
       }
     },
     "20250050": {
-      "name": "Gohar",
+      "name": "20250050",
       "section": "DV",
       "subjects": {
         "TEA501": {
@@ -1764,7 +1764,7 @@
       }
     },
     "20250055": {
-      "name": "Ravi Kumar",
+      "name": "20250055",
       "section": "DV",
       "subjects": {
         "TEA501": {
@@ -1805,7 +1805,7 @@
       }
     },
     "20250056": {
-      "name": "Kunal Sharma",
+      "name": "20250056",
       "section": "DV",
       "subjects": {
         "TEA501": {
@@ -1846,7 +1846,7 @@
       }
     },
     "20250057": {
-      "name": "Lalit Jain",
+      "name": "20250057",
       "section": "DV",
       "subjects": {
         "TEA501": {
@@ -1887,7 +1887,7 @@
       }
     },
     "20250058": {
-      "name": "Raman Singh",
+      "name": "20250058",
       "section": "DV",
       "subjects": {
         "TEA501": {
@@ -1928,7 +1928,7 @@
       }
     },
     "20250059": {
-      "name": "Chirag Kumar",
+      "name": "20250059",
       "section": "DV",
       "subjects": {
         "TEA501": {
@@ -1969,7 +1969,7 @@
       }
     },
     "20250060": {
-      "name": "Ayush Jain",
+      "name": "ayush jain",
       "section": "DV",
       "subjects": {
         "English-V": {
@@ -2010,7 +2010,7 @@
       }
     },
     "20250061": {
-      "name": "Jay Kapoor",
+      "name": "jay kapoor",
       "section": "DV",
       "subjects": {
         "English-V": {
@@ -2051,7 +2051,7 @@
       }
     },
     "20250062": {
-      "name": "Madhav Singh",
+      "name": "madhav singh",
       "section": "DV",
       "subjects": {
         "English-V": {
@@ -2090,257 +2090,11 @@
           "last_updated": "2025-11-12"
         }
       }
-    },
-    "20250042": {
-      "name": "20250042",
-      "section": "Not assigned",
-      "subjects": {
-        "TMA101": {
-          "subject_name": "Basic Maths",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        },
-        "TEA101": {
-          "subject_name": "English-I",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        },
-        "TCA101": {
-          "subject_name": "C Lang",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        },
-        "TEC101": {
-          "subject_name": "Electronics",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        },
-        "TEA301": {
-          "subject_name": "English-III",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        }
-      }
-    },
-    "20250043": {
-      "name": "Devansh",
-      "section": "Not assigned",
-      "subjects": {
-        "TMA101": {
-          "subject_name": "Basic Maths",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        },
-        "TEA101": {
-          "subject_name": "English-I",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        },
-        "TCA101": {
-          "subject_name": "C Lang",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        },
-        "TEC101": {
-          "subject_name": "Electronics",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        },
-        "TEA301": {
-          "subject_name": "English-III",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        }
-      }
-    },
-    "20250044": {
-      "name": "Praveen",
-      "section": "Not assigned",
-      "subjects": {
-        "TMA101": {
-          "subject_name": "Basic Maths",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        },
-        "TEA101": {
-          "subject_name": "English-I",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        },
-        "TCA101": {
-          "subject_name": "C Lang",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        },
-        "TEC101": {
-          "subject_name": "Electronics",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        },
-        "TEA301": {
-          "subject_name": "English-III",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        }
-      }
-    },
-    "20250045": {
-      "name": "20250045",
-      "section": "Not assigned",
-      "subjects": {
-        "TMA101": {
-          "subject_name": "Basic Maths",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        },
-        "TEA101": {
-          "subject_name": "English-I",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        },
-        "TCA101": {
-          "subject_name": "C Lang",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        },
-        "TEC101": {
-          "subject_name": "Electronics",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        },
-        "TEA301": {
-          "subject_name": "English-III",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        }
-      }
-    },
-    "20250046": {
-      "name": "Naman",
-      "section": "Not assigned",
-      "subjects": {
-        "TMA101": {
-          "subject_name": "Basic Maths",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        },
-        "TEA101": {
-          "subject_name": "English-I",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        },
-        "TCA101": {
-          "subject_name": "C Lang",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        },
-        "TEC101": {
-          "subject_name": "Electronics",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        },
-        "TEA301": {
-          "subject_name": "English-III",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        }
-      }
-    },
-    "20250048": {
-      "name": "Krishna",
-      "section": "Not assigned",
-      "subjects": {
-        "TMA101": {
-          "subject_name": "Basic Maths",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        },
-        "TEA101": {
-          "subject_name": "English-I",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        },
-        "TCA101": {
-          "subject_name": "C Lang",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        },
-        "TEC101": {
-          "subject_name": "Electronics",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        },
-        "TEA301": {
-          "subject_name": "English-III",
-          "total_working_days": 0,
-          "total_present_days": 0,
-          "attendance_percentage": 0.0,
-          "last_updated": "2025-11-20"
-        }
-      }
     }
   },
   "metadata": {
-    "last_updated": "2025-11-20",
-    "total_students": 57,
+    "last_updated": "2025-11-13",
+    "total_students": 51,
     "academic_year": "2024-2025",
     "total_subjects": 15
   }

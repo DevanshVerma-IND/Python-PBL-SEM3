@@ -155,7 +155,7 @@ def create_account(users):
 
     users.add(username, role, salt, pwd_hash, sec_q, sec_a_salt, sec_a_hash)
     save_users(users)
-    rno = subject.get_roll_number(username, role)
+    rno = subject.getRollNumber(username, role)
     print(f"Your roll no is {rno}")
     print("✅ Account created successfully!\n")
 
