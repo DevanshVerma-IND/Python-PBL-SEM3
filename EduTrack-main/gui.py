@@ -172,7 +172,22 @@ class View:
     def label(self, parent, text: str, font, fg: str = PRIMARY_DEEP, bg: str = BG_MAIN, anchor: Literal["nw","n","ne","w","center","e","sw","s","se"] = "center"):
         return tk.Label(parent, text=text, font=font, fg=fg, bg=bg, anchor=anchor)
     def button(self, parent, text, cmd, bg=ACCENT_PINK, fg=PRIMARY_DEEP, width=18):
-        return tk.Button(parent, text=text, command=cmd, bg=bg, fg=fg, relief="flat", bd=0, font=BUTTON, highlightthickness=0, width=width, pady=8)
+        return tk.Button(
+            parent,
+            text=text,
+            command=cmd,
+            bg=bg,
+            fg=fg,
+            bd=0,
+            font=BUTTON,
+            highlightthickness=0,
+            width=width,
+            pady=8,
+            wraplength=240,    
+            justify="left",     
+            anchor="w"          
+        )
+
     def entry(self, parent, show=None, width=28):
         return tk.Entry(parent, font=BODY, show=show if show else "", width=width, relief="flat", highlightbackground=NEUTRAL_GRAYBLUE, highlightthickness=1, bg=BG_PANEL, fg=PRIMARY_DEEP, insertbackground=PRIMARY_DEEP)
     def toplevel(self, parent, title, size="420x280"):
@@ -411,9 +426,12 @@ class App:
         names = student_subjects(roll)
         ensure_student_attendance(roll, sec, names)
         c = self.container("Student Dashboard")
-        self.v.label(c, f"Roll: {roll}", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", pady=4)
-        self.v.label(c, f"Section: {sec}", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", pady=4)
         self.v.label(c, "Subjects:", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", pady=(12, 6))
+        if names:
+            for nm in names:
+                self.v.label(c, f"• {nm}", SMALL, NEUTRAL_GRAYBLUE, BG_PANEL, anchor="w").pack(fill="x", pady=2)
+        else:
+            self.v.label(c, "No subjects mapped.", SMALL, NEUTRAL_GRAYBLUE, BG_PANEL, anchor="w").pack(fill="x", pady=2)
         if names:
             for nm in names:
                 self.v.label(c, f"• {nm}", SMALL, NEUTRAL_GRAYBLUE, BG_PANEL, anchor="w").pack(fill="x", pady=2)
@@ -814,16 +832,52 @@ class App:
 
     def admin_open_student_dashboard(self):
         c = self.container("Open Student Dashboard")
-        self.v.label(c, "Student username", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); name_ent = self.v.entry(c); name_ent.pack(fill="x", pady=6)
+        self.v.label(c, "Student username", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x")
+        name_ent = self.v.entry(c)
+        name_ent.pack(fill="x", pady=6)
+
         def go():
             studentname = name_ent.get().strip()
-            if not studentname: messagebox.showerror("Input", "Enter username."); return
-            prev_user, prev_role = self.active_user, self.active_role
-            self.active_user, self.active_role = studentname, "student"
-            self.dashboard_student()
-            self.active_user, self.active_role = prev_user, prev_role
-            messagebox.showinfo("Dashboard", "Student dashboard opened.")
+            if not studentname:
+                messagebox.showerror("Input", "Enter username.")
+                return
+
+            try:
+                import subject, section
+                roll = subject.getRollNumber(studentname, "student")
+                sec = section.getSectionForRoll(roll)
+            except Exception:
+                rmap = rollnumbers_map()
+                roll = rmap.get("map", {}).get("student", {}).get(studentname, studentname)
+                sec = sections_map().get(roll, "Not assigned")
+
+            names = student_subjects(roll)
+            ensure_student_attendance(roll, sec, names)
+
+            win = tk.Toplevel(self.root)
+            win.title(f"Student Dashboard - {studentname}")
+            win.geometry("520x420")
+
+            frame = tk.Frame(win, bg=BG_PANEL, padx=12, pady=12)
+            frame.pack(fill="both", expand=True)
+
+            tk.Label(frame, text=f"Username: {studentname}", font=BODY, fg=PRIMARY_DEEP, bg=BG_PANEL, anchor="w").pack(fill="x", pady=4)
+            tk.Label(frame, text=f"Roll: {roll}", font=BODY, fg=PRIMARY_DEEP, bg=BG_PANEL, anchor="w").pack(fill="x", pady=4)
+            tk.Label(frame, text=f"Section: {str(sec or 'Not assigned').strip().upper()}", font=BODY, fg=PRIMARY_DEEP, bg=BG_PANEL, anchor="w").pack(fill="x", pady=4)
+
+            tk.Label(frame, text="Subjects:", font=BODY, fg=PRIMARY_DEEP, bg=BG_PANEL, anchor="w").pack(fill="x", pady=(12, 6))
+            if names:
+                for nm in names:
+                    tk.Label(frame, text=f"• {nm}", font=SMALL, fg=NEUTRAL_GRAYBLUE, bg=BG_PANEL, anchor="w").pack(fill="x", pady=2)
+            else:
+                tk.Label(frame, text="(No subjects assigned)", font=SMALL, fg=NEUTRAL_GRAYBLUE, bg=BG_PANEL, anchor="w").pack(fill="x", pady=2)
+
+            tk.Button(frame, text="Close", command=win.destroy, bg=SIDEBAR_BLUE).pack(pady=10)
+
+            messagebox.showinfo("Dashboard", "Student dashboard opened in a new window.")
+
         self.v.button(c, "Open", go, SIDEBAR_BLUE).pack(pady=8)
+
 
     def dashboard_teacher(self):
         items = [

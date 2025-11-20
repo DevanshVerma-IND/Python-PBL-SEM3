@@ -2090,11 +2090,16 @@
           "last_updated": "2025-11-12"
         }
       }
+    },
+    "20250063": {
+      "name": "20250063",
+      "section": "NOT ASSIGNED",
+      "subjects": {}
     }
   },
   "metadata": {
-    "last_updated": "2025-11-13",
-    "total_students": 51,
+    "last_updated": "2025-11-21",
+    "total_students": 52,
     "academic_year": "2024-2025",
     "total_subjects": 15
   }
