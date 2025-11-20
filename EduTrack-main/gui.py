@@ -276,15 +276,28 @@ class App:
         self.v.label(d, "Admin creation password (admin only)", SMALL, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", padx=30)
         admin_ent = self.v.entry(d, show="*"); admin_ent.pack(fill="x", padx=30, pady=(4, 12))
         self.v.label(d, "Security question", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", padx=30)
-        q_ent = self.v.entry(d); q_ent.insert(0, "What city were you born in?"); q_ent.pack(fill="x", padx=30, pady=(4, 12))
+
+        questions_list = getattr(login, "questions", [
+            "What is the name of your first pet?",
+            "What is the first dish you learned to cook?",
+            "What is your favorite book?",
+            "What is the first word you said (except mother and father)?",
+            "What city were you born in?"
+        ])
+
+        q_var = tk.StringVar(value=questions_list[0])
+        q_combo = ttk.Combobox(d, textvariable=q_var, values=questions_list, state="readonly")
+        q_combo.pack(fill="x", padx=30, pady=(4, 12))
+
         self.v.label(d, "Security answer", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", padx=30)
         a_ent = self.v.entry(d); a_ent.pack(fill="x", padx=30, pady=(4, 18))
+
         def save():
             role = role_ent.get().strip().lower()
             name = name_ent.get().strip()
             secret = pass_ent.get().strip()
             admin_key = admin_ent.get().strip()
-            question = q_ent.get().strip()
+            question = q_var.get().strip()
             answer = a_ent.get().strip()
             if not name or not secret or not role or not question or not answer:
                 messagebox.showerror("Missing Data", "All fields are required."); return
