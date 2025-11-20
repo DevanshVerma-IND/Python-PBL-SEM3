@@ -6,7 +6,8 @@ import getpass
 import pwinput
 import subject
 import menu
-DATAFILE = "userdata.bin"
+BASE_DIR = os.path.dirname(__file__)
+DATAFILE = os.path.join(BASE_DIR, "userdata.bin")
 
 class User:
     def __init__(self, username, role, salt, pwd_hash, question, ans_salt, ans_hash):

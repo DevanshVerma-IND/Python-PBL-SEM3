@@ -1,9 +1,9 @@
 import os
 import shutil
-import fitz  # PyMuPDF
+import fitz  
 import json
 
-SECTIONS_FILE = "sections.json"       # student_id → section
+SECTIONS_FILE = "sections.json"      
 TEACHER_SECTIONS_FILE = "teachersections.json"  # teacher_name → [sections]
 ASSIGNMENT_FOLDER = "assignments"     # root folder
 

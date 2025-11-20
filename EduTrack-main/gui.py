@@ -1,1097 +1,992 @@
-import json
+from __future__ import annotations
 import os
+import sys
+import json
+import hmac
+import shutil
 from datetime import datetime
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog, simpledialog
+from tkinter import ttk, messagebox, filedialog
+from typing import Literal
 
-# Attempt to import customtkinter for modern UI; fallback to tkinter if not available
-try:
-    import customtkinter as ctk
-    CTk = ctk.CTk
-    CTkFrame = ctk.CTkFrame
-    CTkLabel = ctk.CTkLabel
-    CTkButton = ctk.CTkButton
-    CTkEntry = ctk.CTkEntry
-    CTkOptionMenu = ctk.CTkOptionMenu
-    CTkSegmentedButton = ctk.CTkSegmentedButton
-    CTkCheckBox = ctk.CTkCheckBox
-    BooleanVar = tk.BooleanVar
-    ctk.set_appearance_mode("System")
-    ctk.set_default_color_theme("blue")
-    CUSTOM = True
-except ImportError:
-    CTk = tk.Tk
-    CTkFrame = tk.Frame
-    CTkLabel = tk.Label
-    CTkButton = tk.Button
-    CTkEntry = tk.Entry
-    CTkOptionMenu = ttk.Combobox
-    CTkSegmentedButton = None
-    CTkCheckBox = tk.Checkbutton
-    BooleanVar = tk.BooleanVar
-    CUSTOM = False
+import login
 
-# Common font and colors
-FONT_NAME = "Courier New"
-HEADER_BG = "#6A5ACD"   # Purple theme
-HEADER_FG = "#FF69B4"   # Pink theme
-BUTTON_BG = "#FF69B4"
-BUTTON_FG = "#FFFFFF"
-SIDEBAR_BG = "#6A5ACD"
-CONTENT_BG = "#FFFFFF"
+PRIMARY_DEEP = "#2C3E50"
+ACCENT_PINK = "#FF2F92"
+SECONDARY_BLUE = "#3C5A99"
+SIDEBAR_BLUE = "#4A90E2"
+NEUTRAL_GRAYBLUE = "#5D6D7E"
+BG_MAIN = "#FFFFFF"
+BG_PANEL = "#F7F9FC"
+BG_SIDEBAR = "#F0F3F8"
 
-class EduTrackApp:
+HEADING = ("Courier New", 28, "bold")
+TITLE = ("Courier New", 20, "bold")
+BODY = ("Courier New", 13)
+BUTTON = ("Courier New", 14, "bold")
+SMALL = ("Courier New", 11)
+
+ROOT = os.path.dirname(os.path.abspath(__file__))
+PATH_SUBJECTS = os.path.join(ROOT, "subjects.json")
+PATH_SECTIONS = os.path.join(ROOT, "sections.json")
+PATH_SECTIONLIST = os.path.join(ROOT, "sectionlist.json")
+PATH_TEACHERSECTIONS = os.path.join(ROOT, "teachersections.json")
+PATH_SECTIONSUBJECTS = os.path.join(ROOT, "sectionsubjects.json")
+PATH_STUDENTSUBJECTS = os.path.join(ROOT, "studentsubjects.json")
+PATH_ATTENDANCE = os.path.join(ROOT, "attendance_master.json")
+PATH_TOPICS = os.path.join(ROOT, "topics.json")
+PATH_ROLLNUMBERS = os.path.join(ROOT, "rollnumbers.json")
+PATH_EXAMS = os.path.join(ROOT, "exam_date.json")
+PATH_ASSIGNMENTS = os.path.join(ROOT, "assignments")
+
+def load_json(path, default):
+    try:
+        if not os.path.exists(path):
+            return default
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return default
+
+def save_json(path, payload):
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2)
+        return True
+    except Exception as e:
+        messagebox.showerror("File Error", f"Unable to save {os.path.basename(path)}: {e}")
+        return False
+
+def ensure_files():
+    defaults = [
+        (PATH_ATTENDANCE, {"attendance_records": {}, "metadata": {}}),
+        (PATH_SUBJECTS, {"subjects": []}),
+        (PATH_SECTIONS, {}),
+        (PATH_SECTIONLIST, []),
+        (PATH_TEACHERSECTIONS, {}),
+        (PATH_SECTIONSUBJECTS, {}),
+        (PATH_STUDENTSUBJECTS, {}),
+        (PATH_TOPICS, {}),
+        (PATH_ROLLNUMBERS, {"map": {"student": {}, "teacher": {}, "admin": {}}, "counters": {"student": 0, "teacher": 0, "admin": 0}}),
+        (PATH_EXAMS, {"exam_schedule": []}),
+    ]
+    for p, d in defaults:
+        if not os.path.exists(p):
+            save_json(p, d)
+    os.makedirs(PATH_ASSIGNMENTS, exist_ok=True)
+
+def subject_list():
+    data = load_json(PATH_SUBJECTS, {"subjects": []})
+    if isinstance(data, dict) and "subjects" in data:
+        return data["subjects"]
+    if isinstance(data, list):
+        return data
+    return []
+
+def code_by_name(name):
+    for s in subject_list():
+        if s.get("name") == name:
+            return s.get("code", name)
+    return name
+
+def name_by_code(code):
+    for s in subject_list():
+        if s.get("code") == code:
+            return s.get("name", code)
+    return code
+
+def teacher_sections_map():
+    return load_json(PATH_TEACHERSECTIONS, {})
+
+def sections_map():
+    return load_json(PATH_SECTIONS, {})
+
+def section_list():
+    raw = load_json(PATH_SECTIONLIST, [])
+    return sorted({str(s).strip().upper() for s in raw if str(s).strip()})
+
+def section_subjects_map():
+    return load_json(PATH_SECTIONSUBJECTS, {})
+
+def topics_map():
+    return load_json(PATH_TOPICS, {})
+
+def attendance_master():
+    return load_json(PATH_ATTENDANCE, {"attendance_records": {}, "metadata": {}})
+
+def rollnumbers_map():
+    return load_json(PATH_ROLLNUMBERS, {"map": {"student": {}, "teacher": {}, "admin": {}}, "counters": {}})
+
+def exams_payload():
+    return load_json(PATH_EXAMS, {"exam_schedule": []})
+
+def student_subjects(roll):
+    sdata = load_json(PATH_STUDENTSUBJECTS, {})
+    entry = sdata.get(roll)
+    if entry and isinstance(entry, dict):
+        names = entry.get("subjects", [])
+        if isinstance(names, list):
+            return names
+    am = attendance_master().get("attendance_records", {}).get(roll, {})
+    subs = am.get("subjects", {})
+    names = []
+    for k, v in subs.items():
+        nm = v.get("subject_name") if isinstance(v, dict) else None
+        names.append(nm or name_by_code(k))
+    return names
+
+def student_section(roll):
+    sm = sections_map()
+    sec = sm.get(roll)
+    if sec:
+        return str(sec).strip().upper()
+    sdata = load_json(PATH_STUDENTSUBJECTS, {}).get(roll, {})
+    return str(sdata.get("section", "Not assigned")).strip().upper()
+
+def ensure_student_attendance(roll, sec, names):
+    att = attendance_master()
+    records = att.get("attendance_records", {})
+    if roll not in records:
+        subjects_dict = {}
+        for nm in names:
+            code = code_by_name(nm)
+            subjects_dict[code] = {
+                "subject_name": nm,
+                "total_working_days": 0,
+                "total_present_days": 0,
+                "attendance_percentage": 0.0,
+                "last_updated": datetime.now().strftime("%Y-%m-%d")
+            }
+        records[roll] = {"name": roll, "section": sec, "subjects": subjects_dict}
+        att["attendance_records"] = records
+        att.setdefault("metadata", {})["last_updated"] = datetime.now().strftime("%Y-%m-%d")
+        att["metadata"]["total_students"] = len(records)
+        save_json(PATH_ATTENDANCE, att)
+
+class View:
+    def frame(self, parent, bg, border=False):
+        f = tk.Frame(parent, bg=bg)
+        if border:
+            f.configure(highlightbackground=NEUTRAL_GRAYBLUE, highlightthickness=1, bd=0)
+        return f
+    def label(self, parent, text: str, font, fg: str = PRIMARY_DEEP, bg: str = BG_MAIN, anchor: Literal["nw","n","ne","w","center","e","sw","s","se"] = "center"):
+        return tk.Label(parent, text=text, font=font, fg=fg, bg=bg, anchor=anchor)
+    def button(self, parent, text, cmd, bg=ACCENT_PINK, fg=PRIMARY_DEEP, width=18):
+        return tk.Button(parent, text=text, command=cmd, bg=bg, fg=fg, relief="flat", bd=0, font=BUTTON, highlightthickness=0, width=width, pady=8)
+    def entry(self, parent, show=None, width=28):
+        return tk.Entry(parent, font=BODY, show=show if show else "", width=width, relief="flat", highlightbackground=NEUTRAL_GRAYBLUE, highlightthickness=1, bg=BG_PANEL, fg=PRIMARY_DEEP, insertbackground=PRIMARY_DEEP)
+    def toplevel(self, parent, title, size="420x280"):
+        t = tk.Toplevel(parent)
+        t.geometry(size)
+        t.title(title)
+        t.configure(bg=BG_PANEL)
+        return t
+    def clear(self, frame):
+        for w in frame.winfo_children():
+            w.destroy()
+
+class App:
     def __init__(self, root):
+        ensure_files()
         self.root = root
-        self.root.title("EduTrack - Student ERP System")
-        self.root.geometry("1024x768")
-        # File paths
-        self.userdata_file = "userdata.bin"
-        self.subjects_file = "subjects.json"
-        self.sections_file = "sections.json"
-        self.topics_file = "topics.json"
-        self.exams_file = "exam_date.json"
-        self.teachersections_file = "teachersections.json"
-        self.attendance_file = "attendance_master.json"
-        self.rollnumbers_file = "rollnumbers.json"
-        # Load data
-        self.load_user_data()
-        self.subjects_data = self.load_data(self.subjects_file)
-        self.sections_data = self.load_data(self.sections_file)
-        self.topics_data = self.load_data(self.topics_file)
-        self.exams_data = self.load_data(self.exams_file)
-        self.teachers_data = self.load_data(self.teachersections_file)
-        self.attendance_data = self.load_data(self.attendance_file)
-        # Initialize frames
+        self.root.title("EDUTRACK")
+        self.root.geometry("1280x820")
+        self.root.configure(bg=BG_MAIN)
+        self.v = View()
+        self.users = login.load_users()
+        self.active_user = ""
+        self.active_role = ""
         self.login_frame = None
-        self.dashboard_frame = None
+        self.shell_frame = None
+        self.sidebar_frame = None
+        self.content_frame = None
+        self.sidebar_buttons = {}
         self.show_login()
 
-    def load_user_data(self):
-        try:
-            with open(self.userdata_file, 'r') as f:
-                self.userdata = json.load(f)
-        except Exception:
-            self.userdata = {}
-
-    def save_user_data(self):
-        with open(self.userdata_file, 'w') as f:
-            json.dump(self.userdata, f)
-
-    def load_data(self, filename):
-        try:
-            with open(filename, 'r') as f:
-                return json.load(f)
-        except Exception:
-            return []
-
-    def save_data(self, filename, data):
-        with open(filename, 'w') as f:
-            json.dump(data, f, indent=4)
-
-    def clear_frame(self, frame):
-        for widget in frame.winfo_children():
-            widget.destroy()
-
     def show_login(self):
-        if self.dashboard_frame:
-            self.dashboard_frame.destroy()
-        # Login Frame
-        self.login_frame = CTkFrame(self.root, fg_color=HEADER_BG if CUSTOM else HEADER_BG)
-        self.login_frame.pack(expand=True)
-        # Title
-        if CUSTOM:
-            title_label = CTkLabel(self.login_frame, text="EduTrack Login", font=(FONT_NAME, 18),
-                                   fg_color=HEADER_BG, text_color=HEADER_FG)
-        else:
-            title_label = tk.Label(self.login_frame, text="EduTrack Login", font=(FONT_NAME, 18),
-                                   bg=HEADER_BG, fg=HEADER_FG)
-        title_label.pack(pady=20)
-        # Username
-        if CUSTOM:
-            user_label = CTkLabel(self.login_frame, text="Username:", font=(FONT_NAME, 12), fg_color=HEADER_BG, text_color="#000")
-        else:
-            user_label = tk.Label(self.login_frame, text="Username:", font=(FONT_NAME, 12), bg=HEADER_BG, fg="#000")
-        user_label.pack(pady=(10,0))
-        self.username_entry = CTkEntry(self.login_frame, font=(FONT_NAME, 12))
-        self.username_entry.pack()
-        # Password
-        if CUSTOM:
-            pass_label = CTkLabel(self.login_frame, text="Password:", font=(FONT_NAME, 12), fg_color=HEADER_BG, text_color="#000")
-        else:
-            pass_label = tk.Label(self.login_frame, text="Password:", font=(FONT_NAME, 12), bg=HEADER_BG, fg="#000")
-        pass_label.pack(pady=(10,0))
-        self.password_entry = CTkEntry(self.login_frame, font=(FONT_NAME, 12), show="*")
-        self.password_entry.pack()
-        # Buttons
-        if CUSTOM:
-            login_btn = CTkButton(self.login_frame, text="Login", font=(FONT_NAME, 12),
-                                  fg_color=BUTTON_BG, text_color=BUTTON_FG, command=self.login)
-            create_btn = CTkButton(self.login_frame, text="Create Account", font=(FONT_NAME, 12),
-                                   fg_color=BUTTON_BG, text_color=BUTTON_FG, command=self.create_account)
-            forgot_btn = CTkButton(self.login_frame, text="Forgot Password", font=(FONT_NAME, 12),
-                                   fg_color=BUTTON_BG, text_color=BUTTON_FG, command=self.forgot_password)
-        else:
-            login_btn = tk.Button(self.login_frame, text="Login", font=(FONT_NAME, 12),
-                                  bg=BUTTON_BG, fg=BUTTON_FG, command=self.login)
-            create_btn = tk.Button(self.login_frame, text="Create Account", font=(FONT_NAME, 12),
-                                   bg=BUTTON_BG, fg=BUTTON_FG, command=self.create_account)
-            forgot_btn = tk.Button(self.login_frame, text="Forgot Password", font=(FONT_NAME, 12),
-                                   bg=BUTTON_BG, fg=BUTTON_FG, command=self.forgot_password)
-        login_btn.pack(pady=(15,5))
-        create_btn.pack(pady=5)
-        forgot_btn.pack(pady=5)
+        if self.shell_frame:
+            self.shell_frame.destroy()
+            self.shell_frame = None
+        if self.login_frame:
+            self.login_frame.destroy()
+        self.login_frame = self.v.frame(self.root, BG_MAIN, border=True)
+        self.login_frame.place(relx=0.5, rely=0.5, anchor="center")
+        brand = self.v.frame(self.login_frame, BG_MAIN)
+        brand.pack(fill="x", pady=(20, 10), padx=40)
+        self.v.label(brand, "EDUTRACK", HEADING, PRIMARY_DEEP, BG_MAIN).pack(fill="x")
+        strip = self.v.frame(brand, ACCENT_PINK); strip.configure(height=4)
+        strip.pack(fill="x", pady=(8, 0))
+        form = self.v.frame(self.login_frame, BG_PANEL, border=True)
+        form.pack(fill="both", expand=True, padx=30, pady=(0, 30))
+        self.v.label(form, "Modern campus login portal", TITLE, PRIMARY_DEEP, BG_PANEL).pack(pady=(24, 18))
+        self.v.label(form, "Username", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", padx=30)
+        self.username_entry = self.v.entry(form)
+        self.username_entry.pack(fill="x", padx=30, pady=(4, 16))
+        self.v.label(form, "Password", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", padx=30)
+        self.password_entry = self.v.entry(form, show="*")
+        self.password_entry.pack(fill="x", padx=30, pady=(4, 24))
+        buttons = self.v.frame(form, BG_PANEL); buttons.pack(fill="x", padx=30, pady=12)
+        self.v.button(buttons, "Login", self.attempt_login, ACCENT_PINK).pack(fill="x", pady=6)
+        self.v.button(buttons, "Create Account", self.open_create_account, SIDEBAR_BLUE).pack(fill="x", pady=6)
+        self.v.button(buttons, "Forgot Password", self.open_forgot_password, PRIMARY_DEEP).pack(fill="x", pady=6)
+        self.root.bind("<Return>", lambda _e: self.attempt_login())
 
-    def login(self):
+    def attempt_login(self):
         username = self.username_entry.get().strip()
         password = self.password_entry.get().strip()
         if not username or not password:
-            messagebox.showerror("Error", "Please enter username and password")
+            messagebox.showerror("Missing Data", "Please enter both username and password.")
             return
-        if username in self.userdata and self.userdata[username] == password:
-            self.show_dashboard()
-        else:
-            messagebox.showerror("Login Failed", "Invalid username or password")
+        user = self.users.find(username)
+        if not user:
+            messagebox.showerror("Login Failed", "No such user. Please create an account.")
+            return
+        if not hmac.compare_digest(login.make_hash(password, user.salt), user.pwd_hash):
+            messagebox.showerror("Login Failed", "Wrong password. Please try again.")
+            return
+        self.active_user = username
+        self.active_role = user.role
+        self.show_shell()
+        self.show_role_dashboard()
 
-    def create_account(self):
-        if CUSTOM:
-            win = ctk.CTkToplevel(self.root)
-        else:
-            win = tk.Toplevel(self.root)
-        win.title("Create Account")
-        win.geometry("300x200")
-        if CUSTOM:
-            lbl1 = CTkLabel(win, text="New Username:", font=(FONT_NAME, 12), fg_color=SIDEBAR_BG, text_color="#000")
-        else:
-            lbl1 = tk.Label(win, text="New Username:", font=(FONT_NAME, 12), bg=SIDEBAR_BG, fg="#000")
-        lbl1.pack(pady=(10,0))
-        new_user_entry = CTkEntry(win, font=(FONT_NAME, 12))
-        new_user_entry.pack(pady=5)
-        if CUSTOM:
-            lbl2 = CTkLabel(win, text="New Password:", font=(FONT_NAME, 12), fg_color=SIDEBAR_BG, text_color="#000")
-        else:
-            lbl2 = tk.Label(win, text="New Password:", font=(FONT_NAME, 12), bg=SIDEBAR_BG, fg="#000")
-        lbl2.pack(pady=(10,0))
-        new_pass_entry = CTkEntry(win, font=(FONT_NAME, 12), show="*")
-        new_pass_entry.pack(pady=5)
-        def add_user():
-            new_user = new_user_entry.get().strip()
-            new_pass = new_pass_entry.get().strip()
-            if not new_user or not new_pass:
-                messagebox.showerror("Error", "Fields cannot be empty")
-                return
-            if new_user in self.userdata:
-                messagebox.showerror("Error", "User already exists")
-                return
-            self.userdata[new_user] = new_pass
-            self.save_user_data()
-            messagebox.showinfo("Success", "Account created successfully")
-            win.destroy()
-        if CUSTOM:
-            save_btn = CTkButton(win, text="Create", font=(FONT_NAME, 12),
-                                 fg_color=BUTTON_BG, text_color=BUTTON_FG, command=add_user)
-        else:
-            save_btn = tk.Button(win, text="Create", font=(FONT_NAME, 12),
-                                 bg=BUTTON_BG, fg=BUTTON_FG, command=add_user)
-        save_btn.pack(pady=10)
+    def open_create_account(self):
+        d = self.v.toplevel(self.root, "Create Account", "420x360")
+        self.v.label(d, "Add a new campus profile", TITLE, PRIMARY_DEEP, BG_PANEL).pack(pady=(20, 12))
+        self.v.label(d, "Username", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", padx=30)
+        name_ent = self.v.entry(d); name_ent.pack(fill="x", padx=30, pady=(4, 12))
+        self.v.label(d, "Role (student/teacher/admin)", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", padx=30)
+        role_ent = self.v.entry(d); role_ent.pack(fill="x", padx=30, pady=(4, 12))
+        self.v.label(d, "Password", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", padx=30)
+        pass_ent = self.v.entry(d, show="*"); pass_ent.pack(fill="x", padx=30, pady=(4, 12))
+        self.v.label(d, "Admin creation password (admin only)", SMALL, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", padx=30)
+        admin_ent = self.v.entry(d, show="*"); admin_ent.pack(fill="x", padx=30, pady=(4, 12))
+        self.v.label(d, "Security question", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", padx=30)
+        q_ent = self.v.entry(d); q_ent.insert(0, "What city were you born in?"); q_ent.pack(fill="x", padx=30, pady=(4, 12))
+        self.v.label(d, "Security answer", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", padx=30)
+        a_ent = self.v.entry(d); a_ent.pack(fill="x", padx=30, pady=(4, 18))
+        def save():
+            role = role_ent.get().strip().lower()
+            name = name_ent.get().strip()
+            secret = pass_ent.get().strip()
+            admin_key = admin_ent.get().strip()
+            question = q_ent.get().strip()
+            answer = a_ent.get().strip()
+            if not name or not secret or not role or not question or not answer:
+                messagebox.showerror("Missing Data", "All fields are required."); return
+            if role not in ("student", "teacher", "admin"):
+                messagebox.showerror("Invalid Role", "Choose student, teacher, or admin."); return
+            if role == "admin" and admin_key != "admin@123":
+                messagebox.showerror("Unauthorized", "Incorrect admin creation password."); return
+            if len(secret) <= 4:
+                messagebox.showerror("Weak Password", "Password must be more than 4 characters."); return
+            if self.users.find(name):
+                messagebox.showerror("Duplicate User", "This username already exists."); return
+            salt = login.make_salt(); pwd_hash = login.make_hash(secret, salt)
+            ans_salt = login.make_salt(); ans_hash = login.make_hash(answer, ans_salt)
+            self.users.add(name, role, salt, pwd_hash, question, ans_salt, ans_hash)
+            login.save_users(self.users)
+            messagebox.showinfo("Account", "Account created successfully."); d.destroy()
+        self.v.button(d, "Save Account", save, SIDEBAR_BLUE).pack(pady=(0, 18))
 
-    def forgot_password(self):
-        if CUSTOM:
-            win = ctk.CTkToplevel(self.root)
-        else:
-            win = tk.Toplevel(self.root)
-        win.title("Forgot Password")
-        win.geometry("300x150")
-        if CUSTOM:
-            lbl = CTkLabel(win, text="Enter Username:", font=(FONT_NAME, 12), fg_color=SIDEBAR_BG, text_color="#000")
-        else:
-            lbl = tk.Label(win, text="Enter Username:", font=(FONT_NAME, 12), bg=SIDEBAR_BG, fg="#000")
-        lbl.pack(pady=(10,0))
-        user_entry = CTkEntry(win, font=(FONT_NAME, 12))
-        user_entry.pack(pady=5)
-        def retrieve():
-            user = user_entry.get().strip()
-            if user in self.userdata:
-                messagebox.showinfo("Password", f"Password for {user}: {self.userdata[user]}")
-                win.destroy()
-            else:
-                messagebox.showerror("Error", "User not found")
-        if CUSTOM:
-            retrieve_btn = CTkButton(win, text="Retrieve", font=(FONT_NAME, 12),
-                                     fg_color=BUTTON_BG, text_color=BUTTON_FG, command=retrieve)
-        else:
-            retrieve_btn = tk.Button(win, text="Retrieve", font=(FONT_NAME, 12),
-                                     bg=BUTTON_BG, fg=BUTTON_FG, command=retrieve)
-        retrieve_btn.pack(pady=10)
+    def open_forgot_password(self):
+        d = self.v.toplevel(self.root, "Password Help", "420x260")
+        self.v.label(d, "Recover your access", TITLE, PRIMARY_DEEP, BG_PANEL).pack(pady=(20, 10))
+        self.v.label(d, "Username", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", padx=30)
+        user_ent = self.v.entry(d); user_ent.pack(fill="x", padx=30, pady=(4, 12))
+        def go():
+            uname = user_ent.get().strip()
+            if not uname:
+                messagebox.showerror("Missing Data", "Please enter your username."); return
+            self.users = login.load_users()
+            u = self.users.find(uname)
+            if not u:
+                messagebox.showerror("Unknown User", "This username is not registered."); return
+            reset = self.v.toplevel(d, "Reset Secret", "420x260")
+            self.v.label(reset, f"Security question:\n{u.question}", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", padx=24, pady=(18, 8))
+            self.v.label(reset, "Answer", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", padx=24)
+            a_ent = self.v.entry(reset); a_ent.pack(fill="x", padx=24, pady=(4, 10))
+            self.v.label(reset, "New Password", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", padx=24)
+            np_ent = self.v.entry(reset, show="*"); np_ent.pack(fill="x", padx=24, pady=(4, 12))
+            def save_new():
+                ans = a_ent.get().strip(); new_secret = np_ent.get().strip()
+                if not ans or not new_secret:
+                    messagebox.showerror("Missing Data", "Answer and password are required."); return
+                if len(new_secret) <= 4:
+                    messagebox.showerror("Weak Password", "Password must be more than 4 characters."); return
+                if login.make_hash(ans, u.ans_salt) != u.ans_hash:
+                    messagebox.showerror("Incorrect Answer", "Security answer does not match."); return
+                new_salt = login.make_salt(); new_hash = login.make_hash(new_secret, new_salt)
+                u.salt = new_salt; u.pwd_hash = new_hash
+                login.save_users(self.users)
+                messagebox.showinfo("Updated", "Password has been reset."); reset.destroy(); d.destroy()
+            self.v.button(reset, "Save New Password", save_new, SIDEBAR_BLUE).pack(pady=(0, 18))
+        self.v.button(d, "Continue", go, SIDEBAR_BLUE).pack(pady=(0, 18))
 
-    def show_dashboard(self):
+    def show_shell(self):
         if self.login_frame:
             self.login_frame.destroy()
-        self.dashboard_frame = CTkFrame(self.root, fg_color=CONTENT_BG if CUSTOM else CONTENT_BG)
-        self.dashboard_frame.pack(fill="both", expand=True)
-        # Header
-        if CUSTOM:
-            header_frame = CTkFrame(self.dashboard_frame, fg_color=HEADER_BG)
-            header_label = CTkLabel(header_frame, text="EDUTRACK", font=(FONT_NAME, 24), fg_color=HEADER_BG, text_color=BUTTON_FG)
-        else:
-            header_frame = tk.Frame(self.dashboard_frame, bg=HEADER_BG)
-            header_label = tk.Label(header_frame, text="EDUTRACK", font=(FONT_NAME, 24), bg=HEADER_BG, fg=BUTTON_FG)
-        header_frame.pack(side="top", fill="x")
-        header_label.pack(pady=10)
-        # Sidebar
-        if CUSTOM:
-            sidebar_frame = CTkFrame(self.dashboard_frame, fg_color=SIDEBAR_BG)
-        else:
-            sidebar_frame = tk.Frame(self.dashboard_frame, bg=SIDEBAR_BG)
-        sidebar_frame.pack(side="left", fill="y")
-        self.content_frame = CTkFrame(self.dashboard_frame, fg_color=CONTENT_BG if CUSTOM else CONTENT_BG)
-        self.content_frame.pack(side="right", fill="both", expand=True, padx=10, pady=10)
-        # Sidebar buttons
-        if CUSTOM:
-            btn_att = CTkButton(sidebar_frame, text="Attendance", font=(FONT_NAME, 12),
-                                fg_color=BUTTON_BG, text_color=BUTTON_FG, command=self.show_attendance)
-            btn_sub = CTkButton(sidebar_frame, text="Subjects", font=(FONT_NAME, 12),
-                                fg_color=BUTTON_BG, text_color=BUTTON_FG, command=self.show_subjects)
-            btn_sec = CTkButton(sidebar_frame, text="Sections", font=(FONT_NAME, 12),
-                                fg_color=BUTTON_BG, text_color=BUTTON_FG, command=self.show_sections)
-            btn_tea = CTkButton(sidebar_frame, text="Teachers", font=(FONT_NAME, 12),
-                                fg_color=BUTTON_BG, text_color=BUTTON_FG, command=self.show_teachers)
-            btn_exm = CTkButton(sidebar_frame, text="Exams", font=(FONT_NAME, 12),
-                                fg_color=BUTTON_BG, text_color=BUTTON_FG, command=self.show_exams)
-            btn_top = CTkButton(sidebar_frame, text="Topics", font=(FONT_NAME, 12),
-                                fg_color=BUTTON_BG, text_color=BUTTON_FG, command=self.show_topics)
-            btn_logout = CTkButton(sidebar_frame, text="Logout", font=(FONT_NAME, 12),
-                                   fg_color=BUTTON_BG, text_color=BUTTON_FG, command=self.logout)
-            btn_quit = CTkButton(sidebar_frame, text="Quit", font=(FONT_NAME, 12),
-                                 fg_color=BUTTON_BG, text_color=BUTTON_FG, command=self.root.quit)
-        else:
-            btn_att = tk.Button(sidebar_frame, text="Attendance", font=(FONT_NAME, 12),
-                                bg=BUTTON_BG, fg=BUTTON_FG, command=self.show_attendance)
-            btn_sub = tk.Button(sidebar_frame, text="Subjects", font=(FONT_NAME, 12),
-                                bg=BUTTON_BG, fg=BUTTON_FG, command=self.show_subjects)
-            btn_sec = tk.Button(sidebar_frame, text="Sections", font=(FONT_NAME, 12),
-                                bg=BUTTON_BG, fg=BUTTON_FG, command=self.show_sections)
-            btn_tea = tk.Button(sidebar_frame, text="Teachers", font=(FONT_NAME, 12),
-                                bg=BUTTON_BG, fg=BUTTON_FG, command=self.show_teachers)
-            btn_exm = tk.Button(sidebar_frame, text="Exams", font=(FONT_NAME, 12),
-                                bg=BUTTON_BG, fg=BUTTON_FG, command=self.show_exams)
-            btn_top = tk.Button(sidebar_frame, text="Topics", font=(FONT_NAME, 12),
-                                bg=BUTTON_BG, fg=BUTTON_FG, command=self.show_topics)
-            btn_logout = tk.Button(sidebar_frame, text="Logout", font=(FONT_NAME, 12),
-                                   bg=BUTTON_BG, fg=BUTTON_FG, command=self.logout)
-            btn_quit = tk.Button(sidebar_frame, text="Quit", font=(FONT_NAME, 12),
-                                 bg=BUTTON_BG, fg=BUTTON_FG, command=self.root.quit)
-        btn_att.pack(pady=5, padx=5)
-        btn_sub.pack(pady=5, padx=5)
-        btn_sec.pack(pady=5, padx=5)
-        btn_tea.pack(pady=5, padx=5)
-        btn_exm.pack(pady=5, padx=5)
-        btn_top.pack(pady=5, padx=5)
-        btn_logout.pack(pady=20, padx=5)
-        btn_quit.pack(pady=5, padx=5)
+            self.login_frame = None
+        if self.shell_frame:
+            self.shell_frame.destroy()
+        self.shell_frame = self.v.frame(self.root, BG_MAIN); self.shell_frame.pack(fill="both", expand=True)
+        header = self.v.frame(self.shell_frame, BG_MAIN, border=True); header.pack(fill="x", padx=24, pady=20)
+        self.v.label(header, "EDUTRACK", HEADING, PRIMARY_DEEP, BG_MAIN).pack(pady=(12, 6))
+        self.v.label(header, "Unified academic cockpit for attendance, academics, and planning", BODY, NEUTRAL_GRAYBLUE, BG_MAIN).pack(pady=(0, 12))
+        body = self.v.frame(self.shell_frame, BG_MAIN); body.pack(fill="both", expand=True, padx=24, pady=(0, 24))
+        self.sidebar_frame = self.v.frame(body, BG_SIDEBAR, border=True); self.sidebar_frame.pack(side="left", fill="y", padx=(0, 16), pady=4)
+        self.content_frame = self.v.frame(body, BG_PANEL, border=True); self.content_frame.pack(side="right", fill="both", expand=True, pady=4)
+        self.sidebar_buttons.clear()
+        self.v.button(self.sidebar_frame, "Logout", self.logout, ACCENT_PINK).pack(fill="x", padx=24, pady=(20, 10))
+
+    def safe_call(self, func):
+        try:
+            func()
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+    def set_sidebar(self, items):
+        if not self.sidebar_frame:
+            return
+        for w in list(self.sidebar_frame.winfo_children())[1:]:
+            w.destroy()
+        for text, handler in items:
+            b = self.v.button(self.sidebar_frame, text, lambda h=handler: self.safe_call(h), SIDEBAR_BLUE)
+            b.pack(fill="x", padx=24, pady=6)
+            self.sidebar_buttons[text] = b
+
+    def container(self, title_text):
+        self.v.clear(self.content_frame)
+        self.v.label(self.content_frame, title_text, TITLE, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", padx=20, pady=(20, 10))
+        div = self.v.frame(self.content_frame, NEUTRAL_GRAYBLUE); div.configure(height=2); div.pack(fill="x", padx=20, pady=(0, 10))
+        c = self.v.frame(self.content_frame, BG_PANEL); c.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+        return c
 
     def logout(self):
-        if self.dashboard_frame:
-            self.dashboard_frame.destroy()
+        self.active_user = ""
+        self.active_role = ""
         self.show_login()
 
-    def show_attendance(self):
-        self.clear_frame(self.content_frame)
-        if CUSTOM:
-            label = CTkLabel(self.content_frame, text="Attendance Module", font=(FONT_NAME, 18), fg_color=CONTENT_BG, text_color="#000")
+    def show_role_dashboard(self):
+        r = (self.active_role or "").strip().lower()
+        if r == "admin":
+            self.dashboard_admin()
+        elif r == "teacher":
+            self.dashboard_teacher()
+        elif r == "student":
+            self.dashboard_student()
         else:
-            label = tk.Label(self.content_frame, text="Attendance Module", font=(FONT_NAME, 18), bg=CONTENT_BG, fg="#000")
-        label.pack(pady=10)
-        students = []
-        try:
-            students = self.load_data(self.attendance_file)
-        except Exception:
-            students = []
-        self.attendance_vars = {}
-        if not students:
-            if CUSTOM:
-                info = CTkLabel(self.content_frame, text="No students found in attendance data.",
-                                font=(FONT_NAME, 12), fg_color=CONTENT_BG, text_color="#000")
-            else:
-                info = tk.Label(self.content_frame, text="No students found in attendance data.",
-                                font=(FONT_NAME, 12), bg=CONTENT_BG, fg="#000")
-            info.pack(pady=10)
-        else:
-            for student in students:
-                name = str(student.get("name", student.get("Name", student)))
-                var = BooleanVar()
-                self.attendance_vars[name] = var
-                if CUSTOM:
-                    cb = CTkCheckBox(self.content_frame, text=name, text_color="#000", font=(FONT_NAME,12))
-                else:
-                    cb = tk.Checkbutton(self.content_frame, text=name, variable=var,
-                                         font=(FONT_NAME,12), bg=CONTENT_BG, anchor="w")
-                cb.pack(anchor="w", padx=10, pady=2)
-        # Buttons
-        if CUSTOM:
-            summary_btn = CTkButton(self.content_frame, text="Show Summary", font=(FONT_NAME, 12),
-                                    fg_color=BUTTON_BG, text_color=BUTTON_FG, command=self.attendance_summary)
-            export_btn = CTkButton(self.content_frame, text="Export Attendance", font=(FONT_NAME, 12),
-                                   fg_color=BUTTON_BG, text_color=BUTTON_FG, command=self.export_attendance)
-        else:
-            summary_btn = tk.Button(self.content_frame, text="Show Summary", font=(FONT_NAME, 12),
-                                     bg=BUTTON_BG, fg=BUTTON_FG, command=self.attendance_summary)
-            export_btn = tk.Button(self.content_frame, text="Export Attendance", font=(FONT_NAME, 12),
-                                    bg=BUTTON_BG, fg=BUTTON_FG, command=self.export_attendance)
-        summary_btn.pack(pady=10)
-        export_btn.pack(pady=5)
+            self.dashboard_guest()
 
-    def attendance_summary(self):
-        present_count = sum(var.get() for var in self.attendance_vars.values())
-        total = len(self.attendance_vars)
-        absent_count = total - present_count
+    def dashboard_guest(self):
+        self.set_sidebar([])
+        c = self.container("Dashboard")
+        self.v.label(c, "Welcome back, Guest", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", pady=(0, 12))
+
+    def dashboard_student(self):
+        items = [
+            ("View dashboard", self.student_view_dashboard),
+            ("View my exam schedule", self.student_exam_schedule),
+            ("View my attendance", self.student_view_attendance),
+            ("View attendance summary", self.student_attendance_summary),
+            ("View topics covered in my section", self.student_view_topics),
+            ("Submit assignment PDF", self.student_submit_assignment),
+        ]
+        self.set_sidebar(items)
+        self.student_view_dashboard()
+
+    def student_roll_and_section(self):
+        try:
+            import subject, section
+            roll = subject.getRollNumber(self.active_user, "student")
+            sec = section.getSectionForRoll(roll)
+        except Exception:
+            rmap = rollnumbers_map()
+            roll = rmap.get("map", {}).get("student", {}).get(self.active_user, self.active_user)
+            sec = sections_map().get(roll, "Not assigned")
+        sec = str(sec or "Not assigned").strip().upper()
+        return roll, sec
+
+    def student_view_dashboard(self):
+        roll, sec = self.student_roll_and_section()
+        names = student_subjects(roll)
+        ensure_student_attendance(roll, sec, names)
+        c = self.container("Student Dashboard")
+        self.v.label(c, f"Roll: {roll}", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", pady=4)
+        self.v.label(c, f"Section: {sec}", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", pady=4)
+        self.v.label(c, "Subjects:", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", pady=(12, 6))
+        if names:
+            for nm in names:
+                self.v.label(c, f"• {nm}", SMALL, NEUTRAL_GRAYBLUE, BG_PANEL, anchor="w").pack(fill="x", pady=2)
+        else:
+            self.v.label(c, "No subjects mapped.", SMALL, NEUTRAL_GRAYBLUE, BG_PANEL, anchor="w").pack(fill="x", pady=2)
+
+    def student_exam_schedule(self):
+        roll, sec = self.student_roll_and_section()
+        names = student_subjects(roll)
+        codes = [code_by_name(nm) for nm in names]
+        schedule = exams_payload().get("exam_schedule", [])
+        matched = []
+        for item in schedule:
+            scode = item.get("subject_code") or item.get("code")
+            if scode in codes:
+                matched.append((item.get("subject_name", name_by_code(scode)), scode, item.get("exam_date", "")))
+        c = self.container("My Exam Schedule")
+        if not matched:
+            self.v.label(c, "No exam dates found for your subjects.", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x")
+            return
+        cols = ("Subject", "Code", "Exam Date")
+        tree = ttk.Treeview(c, columns=cols, show="headings", height=10)
+        for col in cols:
+            tree.heading(col, text=col); tree.column(col, anchor="center", width=200)
+        tree.pack(fill="both", expand=True)
+        for nm, code, date in matched:
+            tree.insert("", "end", values=(nm, code, date))
+
+    def _add_scroll(self, parent):
+        outer = self.v.frame(parent, BG_PANEL)
+        outer.pack(fill="both", expand=True)
+        canvas = tk.Canvas(outer, bg=BG_PANEL, highlightthickness=0)
+        canvas.pack(side="left", fill="both", expand=True)
+        sb = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+        sb.pack(side="right", fill="y")
+        canvas.configure(yscrollcommand=sb.set)
+        inner = self.v.frame(canvas, BG_PANEL)
+        inner_id = canvas.create_window((0, 0), window=inner, anchor="nw")
+        def on_config(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+            canvas.itemconfigure(inner_id, width=event.width)
+        inner.bind("<Configure>", lambda e: on_config(e))
+        canvas.bind("<Configure>", lambda e: canvas.itemconfigure(inner_id, width=e.width))
+        return inner
+
+    def student_view_attendance(self):
+        roll, _ = self.student_roll_and_section()
+        data = attendance_master().get("attendance_records", {}).get(roll, {})
+        subjects = data.get("subjects", {})
+        c = self.container("My Attendance")
+        cols = ("Subject", "Name", "Sessions", "Present", "Percent", "Updated")
+        tree = ttk.Treeview(c, columns=cols, show="headings", height=12)
+        for col in cols:
+            tree.heading(col, text=col); tree.column(col, anchor="center", width=140)
+        tree.pack(fill="both", expand=True)
+        for code, det in subjects.items():
+            tree.insert("", "end", values=(code, det.get("subject_name", code), det.get("total_working_days", 0),
+                                           det.get("total_present_days", 0), f"{det.get('attendance_percentage', 0.0):.2f}%",
+                                           det.get("last_updated", "-")))
+        if subjects:
+            try:
+                from matplotlib.figure import Figure
+                from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+                plot_host = self._add_scroll(c)
+                bar_count = len(subjects)
+                fig_h = max(3.5, min(10.0, 0.45 * bar_count))
+                fig = Figure(figsize=(7.0, fig_h), dpi=100)
+                ax = fig.add_subplot(111)
+                names = [det.get("subject_name", code) for code, det in subjects.items()]
+                vals = [det.get("attendance_percentage", 0.0) for det in subjects.values()]
+                ax.barh(names, vals, color=SIDEBAR_BLUE)
+                ax.set_xlim(0, 100)
+                ax.set_xlabel("Percentage")
+                ax.set_title(f"Attendance % for {roll}")
+                fig.tight_layout()
+                canvas = FigureCanvasTkAgg(fig, master=plot_host); canvas.draw(); canvas.get_tk_widget().pack(fill="both", expand=True, pady=8)
+            except Exception:
+                self.v.label(c, "Graph unavailable. Install matplotlib.", SMALL, NEUTRAL_GRAYBLUE, BG_PANEL, anchor="w").pack(fill="x", pady=8)
+
+    def student_attendance_summary(self):
+        roll, _ = self.student_roll_and_section()
+        data = attendance_master().get("attendance_records", {}).get(roll, {})
+        c = self.container("Attendance Summary")
+        if not data:
+            self.v.label(c, "No attendance data found.", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); return
+        self.v.label(c, f"Roll: {roll}", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", pady=4)
+        self.v.label(c, f"Section: {data.get('section','')}", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", pady=4)
+        self.v.label(c, "Subject-wise:", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", pady=(12, 6))
+        for code, det in data.get("subjects", {}).items():
+            self.v.label(c, f"{det.get('subject_name','')} ({code})", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x")
+            self.v.label(c, f"Working: {det.get('total_working_days',0)}  Present: {det.get('total_present_days',0)}  Attendance: {det.get('attendance_percentage',0.0)}%", SMALL, NEUTRAL_GRAYBLUE, BG_PANEL, anchor="w").pack(fill="x", pady=(0, 6))
+
+    def student_view_topics(self):
+        roll, sec = self.student_roll_and_section()
+        items = topics_map().get(sec, [])
+        c = self.container("Topics Covered")
+        if not items:
+            self.v.label(c, f"No topics found for section {sec}.", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); return
+        cols = ("Date", "Teacher", "Topic")
+        tree = ttk.Treeview(c, columns=cols, show="headings", height=12)
+        for col in cols:
+            tree.heading(col, text=col); tree.column(col, anchor="center", width=220)
+        tree.pack(fill="both", expand=True)
+        for item in items:
+            tree.insert("", "end", values=(item.get("date",""), item.get("teacher",""), item.get("topic","")))
+
+    def student_submit_assignment(self):
+        roll, sec = self.student_roll_and_section()
+        c = self.container("Submit Assignment")
+        self.v.label(c, "Select a PDF to submit.", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x")
+        def choose():
+            path = filedialog.askopenfilename(title="Select Assignment PDF", filetypes=[("PDF Files", "*.pdf")])
+            if not path:
+                return
+            if not path.lower().endswith(".pdf"):
+                messagebox.showerror("File", "Only PDF files allowed."); return
+            dest_folder = os.path.join(PATH_ASSIGNMENTS, sec or "UNASSIGNED")
+            os.makedirs(dest_folder, exist_ok=True)
+            dest_path = os.path.join(dest_folder, f"{roll}.pdf")
+            try:
+                shutil.copy2(path, dest_path)
+                messagebox.showinfo("Assignment", f"Submitted: {dest_path}")
+            except Exception as e:
+                messagebox.showerror("Assignment", str(e))
+        self.v.button(c, "Choose PDF and Submit", choose, SIDEBAR_BLUE).pack(pady=10)
+
+    def dashboard_admin(self):
+        items = [
+            ("Admin Home", self.admin_home),
+            ("Add subject", self.admin_add_subject),
+            ("List subjects", self.admin_list_subjects),
+            ("Create section", self.admin_create_section),
+            ("List sections", self.admin_list_sections),
+            ("Assign section to student (choose from list)", self.admin_assign_section_to_student),
+            ("Assign sections to teacher", self.admin_assign_sections_to_teacher),
+            ("Set/Update exam dates", self.admin_set_exam_dates),
+            ("View all exam dates", self.admin_view_all_exam_dates),
+            ("View section assignments", self.admin_view_section_assignments),
+            ("View student info", self.admin_view_student_info),
+            ("View any student's dashboard", self.admin_open_student_dashboard),
+        ]
+        self.set_sidebar(items)
+        self.admin_home()
+
+    def admin_home(self):
+        c = self.container("Admin Dashboard")
+        subjects = subject_list()
+        sections = section_list()
+        teachers = teacher_sections_map()
+        att = attendance_master()
+        students_count = len(att.get("attendance_records", {}))
+        stats_frame = self.v.frame(c, "#FFFFFF", border=True)
+        stats_frame.pack(fill="x", padx=0, pady=8)
+        metrics = [
+            ("Students", students_count, "Onboarded learners"),
+            ("Subjects", len(subjects), "Academic offerings"),
+            ("Sections", len(sections), "Active homerooms"),
+            ("Teachers", len(teachers), "Faculty mapped"),
+        ]
+        for title, value, desc in metrics:
+            card = self.v.frame(stats_frame, "#FFFFFF", border=True)
+            card.pack(side="left", expand=True, fill="both", padx=8, pady=8)
+            self.v.label(card, str(value), HEADING, PRIMARY_DEEP, "#FFFFFF").pack(pady=(18, 4))
+            self.v.label(card, title.upper(), SMALL, NEUTRAL_GRAYBLUE, "#FFFFFF").pack()
+            self.v.label(card, desc, SMALL, PRIMARY_DEEP, "#FFFFFF").pack(pady=(4, 16))
+        quick = self.v.frame(c, BG_PANEL, border=True)
+        quick.pack(fill="x", pady=18)
+        self.v.label(quick, "Quick Actions", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", padx=18, pady=(16, 8))
+        row = self.v.frame(quick, BG_PANEL)
+        row.pack(fill="x", padx=18, pady=(0, 18))
+        actions = [
+            ("Add Subject", self.admin_add_subject),
+            ("Create Section", self.admin_create_section),
+            ("Assign Student", self.admin_assign_section_to_student),
+            ("Assign Teacher", self.admin_assign_sections_to_teacher),
+            ("Set Exam Dates", self.admin_set_exam_dates),
+            ("View All Exams", self.admin_view_all_exam_dates),
+            ("Section Assignments", self.admin_view_section_assignments),
+            ("Open Student Dashboard", self.admin_open_student_dashboard),
+        ]
+        for text, handler in actions:
+            b = self.v.button(row, text, lambda h=handler: self.safe_call(h), bg="#E6ECF8")
+            b.pack(side="left", expand=True, fill="x", padx=6)
+
+    def admin_add_subject(self):
+        c = self.container("Add Subject")
+        self.v.label(c, "Subject Code", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); code_ent = self.v.entry(c); code_ent.pack(fill="x", pady=6)
+        self.v.label(c, "Subject Name", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); name_ent = self.v.entry(c); name_ent.pack(fill="x", pady=6)
+        def save():
+            code = code_ent.get().strip().upper(); name = name_ent.get().strip()
+            if not code or not name:
+                messagebox.showerror("Input", "Code and name required."); return
+            subs = subject_list()
+            if any(s.get("code") == code for s in subs):
+                messagebox.showerror("Duplicate", "Subject code already exists."); return
+            subs.append({"code": code, "name": name}); save_json(PATH_SUBJECTS, {"subjects": subs})
+            messagebox.showinfo("Subject", "Subject added."); self.admin_list_subjects()
+        self.v.button(c, "Save", save, SIDEBAR_BLUE).pack(pady=8)
+
+    def admin_list_subjects(self):
+        c = self.container("Subjects")
+        subs = subject_list()
+        if not subs:
+            self.v.label(c, "No subjects found. Use 'Add subject' to create one.", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x")
+            return
+        cols = ("Code", "Name")
+        tree = ttk.Treeview(c, columns=cols, show="headings", height=12)
+        for col in cols:
+            tree.heading(col, text=col); tree.column(col, anchor="center", width=220)
+        tree.pack(fill="both", expand=True)
+        for s in subs:
+            tree.insert("", "end", values=(s.get("code",""), s.get("name","")))
+
+    def admin_create_section(self):
+        c = self.container("Create Section")
+        self.v.label(c, "New section (e.g., A)", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); sec_ent = self.v.entry(c); sec_ent.pack(fill="x", pady=6)
+        def save():
+            s = sec_ent.get().strip().upper()
+            if not s: messagebox.showerror("Input", "Invalid section."); return
+            lst = section_list()
+            if s in lst: messagebox.showerror("Duplicate", "Section already exists."); return
+            lst.append(s); save_json(PATH_SECTIONLIST, sorted(lst))
+            section_subjects = section_subjects_map()
+            if s in ["AI", "BI", "CI", "DI"]:
+                section_subjects[s] = ["Basic Maths", "English-I", "C Lang", "Electronics", "Computer Networking"]
+            elif s in ["AIII", "BIII", "CIII", "DIII"]:
+                section_subjects[s] = ["DSA", "English-III", "Maths-III", "Artificial Intelligence", "Operating System"]
+            elif s in ["AV", "BV", "CV", "DV"]:
+                section_subjects[s] = ["English-V", "Machine Learning", "Algorithm", "OOP", "Database"]
+            save_json(PATH_SECTIONSUBJECTS, section_subjects)
+            messagebox.showinfo("Section", f"Section {s} created."); self.admin_list_sections()
+        self.v.button(c, "Create", save, SIDEBAR_BLUE).pack(pady=8)
+
+    def admin_list_sections(self):
+        c = self.container("Sections")
+        secs = section_list()
+        if not secs:
+            self.v.label(c, "No sections found. Use 'Create section' to add one.", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x")
+            return
+        cols = ("Section",)
+        tree = ttk.Treeview(c, columns=cols, show="headings", height=12)
+        for col in cols: tree.heading(col, text=col); tree.column(col, anchor="center", width=200)
+        tree.pack(fill="both", expand=True)
+        for s in secs:
+            tree.insert("", "end", values=(s,))
+
+    def admin_assign_section_to_student(self):
+        c = self.container("Assign Section to Student")
+        rmap = rollnumbers_map().get("map", {}).get("student", {})
+        secmap = sections_map(); lst = section_list()
+
+        nb = ttk.Notebook(c)
+        nb.pack(fill="both", expand=True)
+
+        tab_select = self.v.frame(nb, BG_PANEL)
+        tab_manual = self.v.frame(nb, BG_PANEL)
+        nb.add(tab_select, text="Select from lists")
+        nb.add(tab_manual, text="Manual entry")
+
+        if not lst:
+            self.v.label(tab_select, "No sections available. Create a section first.", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", padx=12, pady=12)
+        else:
+            self.v.label(tab_select, "Student roll", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", padx=12)
+            if rmap:
+                students = sorted([(n, r) for n, r in rmap.items()], key=lambda x: x[1])
+                student_var = tk.StringVar(value=students[0][1])
+                ttk.Combobox(tab_select, textvariable=student_var, values=[r for _, r in students], state="readonly").pack(fill="x", padx=12, pady=6)
+            else:
+                student_var = tk.StringVar(value="")
+                self.v.entry(tab_select).pack(fill="x", padx=12, pady=6)
+                def bind_entry(e): student_var.set(e.widget.get().strip())
+                tab_select.winfo_children()[-1].bind("<KeyRelease>", bind_entry)
+
+            self.v.label(tab_select, "Section", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", padx=12)
+            section_var = tk.StringVar(value=lst[0] if lst else "")
+            ttk.Combobox(tab_select, textvariable=section_var, values=lst, state="readonly").pack(fill="x", padx=12, pady=6)
+
+            def assign_sel():
+                roll = student_var.get().strip()
+                sec = section_var.get().strip()
+                if not roll or not sec:
+                    messagebox.showerror("Input", "Choose student and section."); return
+                secmap[roll] = sec; save_json(PATH_SECTIONS, secmap)
+                sec_subjects = section_subjects_map().get(sec, [])
+                studentsubj = load_json(PATH_STUDENTSUBJECTS, {}); studentsubj[roll] = {"section": sec, "subjects": sec_subjects}
+                save_json(PATH_STUDENTSUBJECTS, studentsubj)
+                ensure_student_attendance(roll, sec, sec_subjects)
+                messagebox.showinfo("Assigned", f"Assigned {roll} to section {sec}.")
+                self.admin_view_section_assignments()
+            self.v.button(tab_select, "Assign", assign_sel, SIDEBAR_BLUE).pack(pady=10)
+
+        self.v.label(tab_manual, "Enter student roll", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", padx=12)
+        roll_ent = self.v.entry(tab_manual); roll_ent.pack(fill="x", padx=12, pady=6)
+        self.v.label(tab_manual, "Enter section", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", padx=12)
+        sec_ent = self.v.entry(tab_manual); sec_ent.pack(fill="x", padx=12, pady=6)
+        def assign_manual():
+            roll = roll_ent.get().strip()
+            sec = sec_ent.get().strip().upper()
+            if not roll or not sec:
+                messagebox.showerror("Input", "Enter roll and section."); return
+            if sec not in lst:
+                messagebox.showerror("Input", "Section not found. Create section first."); return
+            secmap[roll] = sec; save_json(PATH_SECTIONS, secmap)
+            sec_subjects = section_subjects_map().get(sec, [])
+            studentsubj = load_json(PATH_STUDENTSUBJECTS, {}); studentsubj[roll] = {"section": sec, "subjects": sec_subjects}
+            save_json(PATH_STUDENTSUBJECTS, studentsubj)
+            ensure_student_attendance(roll, sec, sec_subjects)
+            messagebox.showinfo("Assigned", f"Assigned {roll} to section {sec}.")
+            self.admin_view_section_assignments()
+        self.v.button(tab_manual, "Assign", assign_manual, SIDEBAR_BLUE).pack(pady=10)
+
+    def admin_assign_sections_to_teacher(self):
+        c = self.container("Assign Sections to Teacher")
+        tmap = teacher_sections_map(); teachers = sorted({*tmap.keys()}) if tmap else []
+        teacher_var = tk.StringVar(value=(teachers[0] if teachers else ""))
+        self.v.label(c, "Teacher username", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x")
+        teacher_ent = self.v.entry(c); teacher_ent.insert(0, teacher_var.get()); teacher_ent.pack(fill="x", pady=6)
+        self.v.label(c, "Sections (comma separated)", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x")
+        sections_ent = self.v.entry(c); sections_ent.pack(fill="x", pady=6)
+        def save():
+            tname = teacher_ent.get().strip(); lst = [s.strip().upper() for s in sections_ent.get().split(",") if s.strip()]
+            if not tname or not lst: messagebox.showerror("Input", "Enter teacher and sections."); return
+            sec_all = set(section_list())
+            missing = [s for s in lst if s not in sec_all]
+            if missing:
+                messagebox.showerror("Input", f"Unknown sections: {', '.join(missing)}"); return
+            tmap[tname] = sorted(set(lst)); save_json(PATH_TEACHERSECTIONS, tmap)
+            messagebox.showinfo("Teacher", f"Assigned sections {', '.join(tmap[tname])} to {tname}.")
+        self.v.button(c, "Save", save, SIDEBAR_BLUE).pack(pady=8)
+
+    def admin_set_exam_dates(self):
+        c = self.container("Set/Update Exam Dates")
+        subs = subject_list()
+        if not subs:
+            self.v.label(c, "No subjects available.", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); return
+        self.v.label(c, "Enter exam date (DD/MM/YYYY) for selected subject", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x")
+        codes = [s["code"] for s in subs]; code_var = tk.StringVar(value=codes[0]); date_ent = self.v.entry(c); date_ent.pack(fill="x", pady=6)
+        ttk.Combobox(c, textvariable=code_var, values=codes, state="readonly").pack(fill="x", pady=6)
+        def save_date():
+            code = code_var.get().strip().upper(); date_str = date_ent.get().strip()
+            if not code or not date_str: messagebox.showerror("Input", "Code and date required."); return
+            payload = exams_payload(); found = False
+            for item in payload.get("exam_schedule", []):
+                if (item.get("subject_code") or item.get("code")) == code:
+                    item["subject_code"] = code; item["exam_date"] = date_str; found = True; break
+            if not found:
+                name = next((s["name"] for s in subs if s["code"] == code), "")
+                payload.setdefault("exam_schedule", []).append({"subject_code": code, "subject_name": name, "exam_date": date_str})
+            save_json(PATH_EXAMS, payload); messagebox.showinfo("Exams", "Exam date saved.")
+        self.v.button(c, "Save Date", save_date, SIDEBAR_BLUE).pack(pady=8)
+
+    def admin_view_all_exam_dates(self):
+        c = self.container("Exam Dates (All Subjects)")
+        data = exams_payload().get("exam_schedule", [])
+        if not data:
+            self.v.label(c, "No exam dates set.", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); return
+        cols = ("Subject", "Code", "Exam Date")
+        tree = ttk.Treeview(c, columns=cols, show="headings", height=12)
+        for col in cols: tree.heading(col, text=col); tree.column(col, anchor="center", width=220)
+        tree.pack(fill="both", expand=True)
+        for item in data:
+            tree.insert("", "end", values=(item.get("subject_name",""), item.get("subject_code",""), item.get("exam_date","")))
+
+    def admin_view_section_assignments(self):
+        c = self.container("Section Assignments")
+        mapping = sections_map()
+        if not mapping:
+            self.v.label(c, "No students assigned yet.", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); return
+        bysec = {}
+        for roll, sec in mapping.items():
+            sec = str(sec).strip().upper(); bysec.setdefault(sec, []).append(roll)
+        cols = ("Section", "Students")
+        tree = ttk.Treeview(c, columns=cols, show="headings", height=12)
+        for col in cols: tree.heading(col, text=col); tree.column(col, anchor="center", width=280)
+        tree.pack(fill="both", expand=True)
+        for sec, rolls in sorted(bysec.items()):
+            tree.insert("", "end", values=(sec, ", ".join(sorted(rolls))))
+
+    def admin_view_student_info(self):
+        c = self.container("View Student Info")
+        self.v.label(c, "Student username", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); name_ent = self.v.entry(c); name_ent.pack(fill="x", pady=6)
+        def go():
+            studentname = name_ent.get().strip()
+            if not studentname: messagebox.showerror("Input", "Enter username."); return
+            rmap = rollnumbers_map().get("map", {}).get("student", {})
+            roll = rmap.get(studentname, studentname)
+            sec = student_section(roll)
+            self.v.label(c, f"Roll: {roll}", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", pady=6)
+            self.v.label(c, f"Section: {sec}", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", pady=6)
+            names = student_subjects(roll)
+            if names:
+                self.v.label(c, "Subjects:", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", pady=(10, 6))
+                for nm in names:
+                    self.v.label(c, f"• {nm}", SMALL, NEUTRAL_GRAYBLUE, BG_PANEL, anchor="w").pack(fill="x")
+            else:
+                self.v.label(c, "No subjects mapped.", SMALL, NEUTRAL_GRAYBLUE, BG_PANEL, anchor="w").pack(fill="x")
+        self.v.button(c, "Show", go, SIDEBAR_BLUE).pack(pady=8)
+
+    def admin_open_student_dashboard(self):
+        c = self.container("Open Student Dashboard")
+        self.v.label(c, "Student username", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); name_ent = self.v.entry(c); name_ent.pack(fill="x", pady=6)
+        def go():
+            studentname = name_ent.get().strip()
+            if not studentname: messagebox.showerror("Input", "Enter username."); return
+            prev_user, prev_role = self.active_user, self.active_role
+            self.active_user, self.active_role = studentname, "student"
+            self.dashboard_student()
+            self.active_user, self.active_role = prev_user, prev_role
+            messagebox.showinfo("Dashboard", "Student dashboard opened.")
+        self.v.button(c, "Open", go, SIDEBAR_BLUE).pack(pady=8)
+
+    def dashboard_teacher(self):
+        items = [
+            ("View my sections", self.teacher_view_sections),
+            ("Mark present", self.teacher_mark_present),
+            ("Update attendance/ mark absent", self.teacher_update_attendance),
+            ("View attendance chart", self.teacher_view_chart),
+            ("Add topic covered", self.teacher_add_topic),
+            ("View topics covered", self.teacher_view_topics),
+            ("View submitted assignments", self.teacher_view_assignments),
+        ]
+        self.set_sidebar(items)
+        self.teacher_view_sections()
+
+    def teacher_view_sections(self):
+        c = self.container("My Sections")
+        secs = teacher_sections_map().get(self.active_user, [])
+        if not secs:
+            self.v.label(c, "No sections assigned.", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); return
+        for s in secs:
+            self.v.label(c, s, BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", pady=2)
+
+    def teacher_mark_present(self):
+        c = self.container("Mark Present")
+        self.v.label(c, "Student roll", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); roll_ent = self.v.entry(c); roll_ent.pack(fill="x", pady=6)
+        self.v.label(c, "Subject code", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); code_ent = self.v.entry(c); code_ent.pack(fill="x", pady=6)
+        def go():
+            roll = roll_ent.get().strip(); code = code_ent.get().strip().upper()
+            if not roll or not code: messagebox.showerror("Input", "Enter roll and subject code."); return
+            att = attendance_master(); recs = att.get("attendance_records", {})
+            if roll not in recs: messagebox.showerror("Attendance", "Student not found."); return
+            subs = recs[roll].get("subjects", {})
+            key = code if code in subs else None
+            if not key:
+                for k, v in subs.items():
+                    if str(v.get("subject_name","")).strip().upper() == code.strip().upper():
+                        key = k; break
+            if not key: messagebox.showerror("Subject", "Subject not found for student."); return
+            det = subs[key]
+            det["total_working_days"] = int(det.get("total_working_days", 0)) + 1
+            det["total_present_days"] = int(det.get("total_present_days", 0)) + 1
+            tw = det["total_working_days"]; tp = det["total_present_days"]
+            det["attendance_percentage"] = round((tp / tw) * 100, 2) if tw else 0.0
+            det["last_updated"] = datetime.now().strftime("%Y-%m-%d")
+            recs[roll]["subjects"][key] = det
+            att["attendance_records"] = recs
+            att.setdefault("metadata", {})["last_updated"] = datetime.now().strftime("%Y-%m-%d")
+            save_json(PATH_ATTENDANCE, att)
+            messagebox.showinfo("Attendance", "Marked present.")
+        self.v.button(c, "Mark", go, SIDEBAR_BLUE).pack(pady=8)
+
+    def teacher_update_attendance(self):
+        c = self.container("Update Attendance / Mark Absent")
+        self.v.label(c, "Student roll", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); roll_ent = self.v.entry(c); roll_ent.pack(fill="x", pady=6)
+        self.v.label(c, "Subject code", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); code_ent = self.v.entry(c); code_ent.pack(fill="x", pady=6)
+        self.v.label(c, "New total working days", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); tw_ent = self.v.entry(c); tw_ent.pack(fill="x", pady=6)
+        self.v.label(c, "New total present days", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); tp_ent = self.v.entry(c); tp_ent.pack(fill="x", pady=6)
+        def go():
+            roll = roll_ent.get().strip(); code = code_ent.get().strip().upper()
+            try: tw = int(tw_ent.get().strip()); tp = int(tp_ent.get().strip())
+            except Exception: messagebox.showerror("Input", "Enter numeric values."); return
+            if tp > tw: messagebox.showerror("Input", "Present days cannot exceed working days."); return
+            att = attendance_master(); recs = att.get("attendance_records", {})
+            if roll not in recs: messagebox.showerror("Attendance", "Student not found."); return
+            subs = recs[roll].get("subjects", {})
+            key = code if code in subs else None
+            if not key:
+                for k, v in subs.items():
+                    if str(v.get("subject_name","")).strip().upper() == code.strip().upper():
+                        key = k; break
+            if not key: messagebox.showerror("Subject", "Subject not found for student."); return
+            det = subs[key]
+            det["total_working_days"] = tw
+            det["total_present_days"] = tp
+            det["attendance_percentage"] = round((tp / tw) * 100, 2) if tw else 0.0
+            det["last_updated"] = datetime.now().strftime("%Y-%m-%d")
+            recs[roll]["subjects"][key] = det
+            att["attendance_records"] = recs
+            att.setdefault("metadata", {})["last_updated"] = datetime.now().strftime("%Y-%m-%d")
+            save_json(PATH_ATTENDANCE, att)
+            messagebox.showinfo("Attendance", "Updated.")
+        self.v.button(c, "Update", go, SIDEBAR_BLUE).pack(pady=8)
+
+    def teacher_view_chart(self):
+        c = self.container("Attendance Chart (My Sections)")
         try:
             from matplotlib.figure import Figure
             from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-        except ImportError:
-            messagebox.showerror("Missing Library", "matplotlib is required for summary graph.")
-            return
-        fig = Figure(figsize=(4,3))
+        except Exception:
+            self.v.label(c, "matplotlib not installed; chart unavailable.", BODY, NEUTRAL_GRAYBLUE, BG_PANEL, anchor="w").pack(fill="x"); return
+        mysecs = teacher_sections_map().get(self.active_user, [])
+        att = attendance_master().get("attendance_records", {})
+        pairs = []
+        for roll, rec in att.items():
+            if rec.get("section") in mysecs:
+                for code, det in rec.get("subjects", {}).items():
+                    pairs.append((f"{det.get('subject_name', code)} ({roll})", det.get("attendance_percentage", 0.0)))
+        if not pairs:
+            self.v.label(c, "No attendance data found for your sections.", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); return
+        pairs.sort(key=lambda x: x[1], reverse=True)
+        labels = [p[0] for p in pairs]
+        values = [p[1] for p in pairs]
+        plot_host = self._add_scroll(c)
+        fig_h = max(4.0, min(12.0, 0.45 * len(labels)))
+        fig = Figure(figsize=(8.0, fig_h), dpi=100)
         ax = fig.add_subplot(111)
-        categories = ['Present','Absent']
-        counts = [present_count, absent_count]
-        bars = ax.bar(categories, counts, color=['#6A5ACD','#FF69B4'])
-        ax.set_title("Attendance Summary")
-        for i, v in enumerate(counts):
-            ax.text(i, v + 0.1, str(v), ha='center', fontname=FONT_NAME)
-        canvas = FigureCanvasTkAgg(fig, master=self.content_frame)
-        canvas.draw()
-        canvas.get_tk_widget().pack(pady=10)
+        ax.barh(labels, values, color=SIDEBAR_BLUE)
+        ax.set_xlim(0, 100)
+        ax.set_xlabel("Attendance %")
+        ax.set_title(f"Teacher {self.active_user}")
+        fig.tight_layout()
+        canvas = FigureCanvasTkAgg(fig, master=plot_host); canvas.draw(); canvas.get_tk_widget().pack(fill="both", expand=True, pady=8)
 
-    def export_attendance(self):
-        records = []
-        for name, var in self.attendance_vars.items():
-            present = bool(var.get())
-            records.append({"student": name, "present": present})
-        filetypes = [('CSV file','*.csv'),('JSON file','*.json')]
-        filepath = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=filetypes)
-        if not filepath:
-            return
-        if filepath.endswith(".csv"):
-            try:
-                with open(filepath, 'w', newline='') as csvfile:
-                    import csv
-                    writer = csv.DictWriter(csvfile, fieldnames=["student","present"])
-                    writer.writeheader()
-                    for rec in records:
-                        writer.writerow(rec)
-                messagebox.showinfo("Export", f"Attendance exported to {filepath}")
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to export CSV: {e}")
-        else:
-            try:
-                with open(filepath, 'w') as jf:
-                    json.dump(records, jf, indent=4)
-                messagebox.showinfo("Export", f"Attendance exported to {filepath}")
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to export JSON: {e}")
-
-    def show_subjects(self):
-        self.clear_frame(self.content_frame)
-        if CUSTOM:
-            label = CTkLabel(self.content_frame, text="Subjects Module", font=(FONT_NAME, 18), fg_color=CONTENT_BG, text_color="#000")
-        else:
-            label = tk.Label(self.content_frame, text="Subjects Module", font=(FONT_NAME, 18), bg=CONTENT_BG, fg="#000")
-        label.pack(pady=10)
-        # Table of subjects
-        columns = ("ID", "Name")
-        tree = ttk.Treeview(self.content_frame, columns=columns, show='headings')
-        for col in columns:
-            tree.heading(col, text=col)
-        for subj in self.subjects_data:
-            sid = subj.get("id", subj.get("ID", ""))
-            name = subj.get("name", subj.get("Name", ""))
-            tree.insert("", "end", values=(sid, name))
-        tree.pack(padx=10, pady=10, fill="x")
-        # Buttons
-        if CUSTOM:
-            btn_frame = CTkFrame(self.content_frame, fg_color=CONTENT_BG)
-        else:
-            btn_frame = tk.Frame(self.content_frame, bg=CONTENT_BG)
-        btn_frame.pack(pady=10)
-        if CUSTOM:
-            add_btn = CTkButton(btn_frame, text="Add", font=(FONT_NAME, 12),
-                                fg_color=BUTTON_BG, text_color=BUTTON_FG, command=lambda: self.add_subject(tree))
-            edit_btn = CTkButton(btn_frame, text="Edit", font=(FONT_NAME, 12),
-                                fg_color=BUTTON_BG, text_color=BUTTON_FG, command=lambda: self.edit_subject(tree))
-            del_btn = CTkButton(btn_frame, text="Delete", font=(FONT_NAME, 12),
-                                fg_color=BUTTON_BG, text_color=BUTTON_FG, command=lambda: self.delete_subject(tree))
-        else:
-            add_btn = tk.Button(btn_frame, text="Add", font=(FONT_NAME, 12),
-                                bg=BUTTON_BG, fg=BUTTON_FG, command=lambda: self.add_subject(tree))
-            edit_btn = tk.Button(btn_frame, text="Edit", font=(FONT_NAME, 12),
-                                bg=BUTTON_BG, fg=BUTTON_FG, command=lambda: self.edit_subject(tree))
-            del_btn = tk.Button(btn_frame, text="Delete", font=(FONT_NAME, 12),
-                                bg=BUTTON_BG, fg=BUTTON_FG, command=lambda: self.delete_subject(tree))
-        add_btn.pack(side="left", padx=5)
-        edit_btn.pack(side="left", padx=5)
-        del_btn.pack(side="left", padx=5)
-
-    def add_subject(self, tree):
-        if CUSTOM:
-            win = ctk.CTkToplevel(self.root)
-        else:
-            win = tk.Toplevel(self.root)
-        win.title("Add Subject")
-        win.geometry("300x200")
-        if CUSTOM:
-            lbl1 = CTkLabel(win, text="Subject ID:", font=(FONT_NAME, 12), text_color="#000")
-        else:
-            lbl1 = tk.Label(win, text="Subject ID:", font=(FONT_NAME, 12))
-        lbl1.pack(pady=(10,0))
-        id_entry = CTkEntry(win, font=(FONT_NAME, 12))
-        id_entry.pack(pady=5)
-        if CUSTOM:
-            lbl2 = CTkLabel(win, text="Subject Name:", font=(FONT_NAME, 12), text_color="#000")
-        else:
-            lbl2 = tk.Label(win, text="Subject Name:", font=(FONT_NAME, 12))
-        lbl2.pack(pady=(10,0))
-        name_entry = CTkEntry(win, font=(FONT_NAME, 12))
-        name_entry.pack(pady=5)
+    def teacher_add_topic(self):
+        c = self.container("Add Topic Covered")
+        self.v.label(c, "Section", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); sec_ent = self.v.entry(c); sec_ent.pack(fill="x", pady=6)
+        self.v.label(c, "Topic", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); topic_ent = self.v.entry(c); topic_ent.pack(fill="x", pady=6)
+        self.v.label(c, "Date (DD/MM/YYYY)", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); date_ent = self.v.entry(c); date_ent.pack(fill="x", pady=6)
         def save():
-            sid = id_entry.get().strip()
-            name = name_entry.get().strip()
-            if not sid or not name:
-                messagebox.showerror("Error", "All fields are required")
-                return
-            self.subjects_data.append({"id": sid, "name": name})
-            self.save_data(self.subjects_file, self.subjects_data)
-            tree.insert("", "end", values=(sid, name))
-            win.destroy()
-        if CUSTOM:
-            save_btn = CTkButton(win, text="Save", font=(FONT_NAME, 12),
-                                 fg_color=BUTTON_BG, text_color=BUTTON_FG, command=save)
-        else:
-            save_btn = tk.Button(win, text="Save", font=(FONT_NAME, 12),
-                                 bg=BUTTON_BG, fg=BUTTON_FG, command=save)
-        save_btn.pack(pady=10)
+            sec = sec_ent.get().strip().upper(); topic = topic_ent.get().strip(); date = date_ent.get().strip()
+            if not sec or not topic or not date: messagebox.showerror("Input", "All fields required."); return
+            data = topics_map(); data.setdefault(sec, []).append({"teacher": self.active_user, "topic": topic, "date": date})
+            save_json(PATH_TOPICS, data); messagebox.showinfo("Topic", "Added.")
+        self.v.button(c, "Save", save, SIDEBAR_BLUE).pack(pady=8)
 
-    def edit_subject(self, tree):
-        selected = tree.focus()
-        if not selected:
-            messagebox.showerror("Error", "Select a subject to edit")
-            return
-        values = tree.item(selected, 'values')
-        sid_val, name_val = values
-        if CUSTOM:
-            win = ctk.CTkToplevel(self.root)
-        else:
-            win = tk.Toplevel(self.root)
-        win.title("Edit Subject")
-        win.geometry("300x200")
-        if CUSTOM:
-            lbl1 = CTkLabel(win, text="Subject ID:", font=(FONT_NAME, 12), text_color="#000")
-        else:
-            lbl1 = tk.Label(win, text="Subject ID:", font=(FONT_NAME, 12))
-        lbl1.pack(pady=(10,0))
-        id_entry = CTkEntry(win, font=(FONT_NAME, 12))
-        id_entry.insert(0, sid_val)
-        id_entry.pack(pady=5)
-        id_entry.configure(state="readonly")
-        if CUSTOM:
-            lbl2 = CTkLabel(win, text="Subject Name:", font=(FONT_NAME, 12), text_color="#000")
-        else:
-            lbl2 = tk.Label(win, text="Subject Name:", font=(FONT_NAME, 12))
-        lbl2.pack(pady=(10,0))
-        name_entry = CTkEntry(win, font=(FONT_NAME, 12))
-        name_entry.insert(0, name_val)
-        name_entry.pack(pady=5)
-        def save():
-            name = name_entry.get().strip()
-            if not name:
-                messagebox.showerror("Error", "Name cannot be empty")
-                return
-            for subj in self.subjects_data:
-                if str(subj.get("id","")) == sid_val:
-                    subj["name"] = name
-            self.save_data(self.subjects_file, self.subjects_data)
-            tree.item(selected, values=(sid_val, name))
-            win.destroy()
-        if CUSTOM:
-            save_btn = CTkButton(win, text="Save", font=(FONT_NAME, 12),
-                                 fg_color=BUTTON_BG, text_color=BUTTON_FG, command=save)
-        else:
-            save_btn = tk.Button(win, text="Save", font=(FONT_NAME, 12),
-                                 bg=BUTTON_BG, fg=BUTTON_FG, command=save)
-        save_btn.pack(pady=10)
+    def teacher_view_topics(self):
+        c = self.container("Topics Covered")
+        mysecs = teacher_sections_map().get(self.active_user, [])
+        data = topics_map()
+        if not mysecs:
+            self.v.label(c, "No sections assigned.", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x"); return
+        found = False
+        for sec in mysecs:
+            items = data.get(sec, [])
+            if items:
+                self.v.label(c, f"Section {sec}", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x", pady=(8, 4))
+                for t in items:
+                    self.v.label(c, f"{t.get('topic','')} ({t.get('date','')}) — {t.get('teacher','')}", SMALL, NEUTRAL_GRAYBLUE, BG_PANEL, anchor="w").pack(fill="x", pady=2)
+                found = True
+        if not found:
+            self.v.label(c, "No topics recorded yet.", BODY, PRIMARY_DEEP, BG_PANEL, anchor="w").pack(fill="x")
 
-    def delete_subject(self, tree):
-        selected = tree.focus()
-        if not selected:
-            messagebox.showerror("Error", "Select a subject to delete")
-            return
-        values = tree.item(selected, 'values')
-        sid_val, _ = values
-        confirm = messagebox.askyesno("Confirm", "Delete selected subject?")
-        if not confirm:
-            return
-        self.subjects_data = [subj for subj in self.subjects_data if str(subj.get("id","")) != sid_val]
-        self.save_data(self.subjects_file, self.subjects_data)
-        tree.delete(selected)
+    def teacher_view_assignments(self):
+        c = self.container("Submitted Assignments")
+        mysecs = teacher_sections_map().get(self.active_user, [])
+        cols = ("Section", "Student Roll", "File")
+        tree = ttk.Treeview(c, columns=cols, show="headings", height=14)
+        for col in cols:
+            tree.heading(col, text=col); tree.column(col, anchor="center", width=220 if col!="File" else 320)
+        tree.pack(fill="both", expand=True)
+        for sec in mysecs:
+            sec_dir = os.path.join(PATH_ASSIGNMENTS, sec)
+            if not os.path.isdir(sec_dir):
+                continue
+            for f in os.listdir(sec_dir):
+                if f.lower().endswith(".pdf"):
+                    roll = os.path.splitext(f)[0]
+                    tree.insert("", "end", values=(sec, roll, f))
 
-    def show_sections(self):
-        self.clear_frame(self.content_frame)
-        if CUSTOM:
-            label = CTkLabel(self.content_frame, text="Sections Module", font=(FONT_NAME, 18), fg_color=CONTENT_BG, text_color="#000")
-        else:
-            label = tk.Label(self.content_frame, text="Sections Module", font=(FONT_NAME, 18), bg=CONTENT_BG, fg="#000")
-        label.pack(pady=10)
-        columns = ("ID", "Name")
-        tree = ttk.Treeview(self.content_frame, columns=columns, show='headings')
-        for col in columns:
-            tree.heading(col, text=col)
-        for sec in self.sections_data:
-            sid = sec.get("id", sec.get("ID", ""))
-            name = sec.get("name", sec.get("Name", ""))
-            tree.insert("", "end", values=(sid, name))
-        tree.pack(padx=10, pady=10, fill="x")
-        if CUSTOM:
-            btn_frame = CTkFrame(self.content_frame, fg_color=CONTENT_BG)
-            add_btn = CTkButton(btn_frame, text="Add", font=(FONT_NAME, 12),
-                                fg_color=BUTTON_BG, text_color=BUTTON_FG, command=lambda: self.add_section(tree))
-            edit_btn = CTkButton(btn_frame, text="Edit", font=(FONT_NAME, 12),
-                                fg_color=BUTTON_BG, text_color=BUTTON_FG, command=lambda: self.edit_section(tree))
-            del_btn = CTkButton(btn_frame, text="Delete", font=(FONT_NAME, 12),
-                                fg_color=BUTTON_BG, text_color=BUTTON_FG, command=lambda: self.delete_section(tree))
-        else:
-            btn_frame = tk.Frame(self.content_frame, bg=CONTENT_BG)
-            add_btn = tk.Button(btn_frame, text="Add", font=(FONT_NAME, 12),
-                                bg=BUTTON_BG, fg=BUTTON_FG, command=lambda: self.add_section(tree))
-            edit_btn = tk.Button(btn_frame, text="Edit", font=(FONT_NAME, 12),
-                                bg=BUTTON_BG, fg=BUTTON_FG, command=lambda: self.edit_section(tree))
-            del_btn = tk.Button(btn_frame, text="Delete", font=(FONT_NAME, 12),
-                                bg=BUTTON_BG, fg=BUTTON_FG, command=lambda: self.delete_section(tree))
-        btn_frame.pack(pady=10)
-        add_btn.pack(side="left", padx=5)
-        edit_btn.pack(side="left", padx=5)
-        del_btn.pack(side="left", padx=5)
-
-    def add_section(self, tree):
-        if CUSTOM:
-            win = ctk.CTkToplevel(self.root)
-        else:
-            win = tk.Toplevel(self.root)
-        win.title("Add Section")
-        win.geometry("300x200")
-        if CUSTOM:
-            lbl1 = CTkLabel(win, text="Section ID:", font=(FONT_NAME, 12), text_color="#000")
-        else:
-            lbl1 = tk.Label(win, text="Section ID:", font=(FONT_NAME, 12))
-        lbl1.pack(pady=(10,0))
-        id_entry = CTkEntry(win, font=(FONT_NAME, 12))
-        id_entry.pack(pady=5)
-        if CUSTOM:
-            lbl2 = CTkLabel(win, text="Section Name:", font=(FONT_NAME, 12), text_color="#000")
-        else:
-            lbl2 = tk.Label(win, text="Section Name:", font=(FONT_NAME, 12))
-        lbl2.pack(pady=(10,0))
-        name_entry = CTkEntry(win, font=(FONT_NAME, 12))
-        name_entry.pack(pady=5)
-        def save():
-            sid = id_entry.get().strip()
-            name = name_entry.get().strip()
-            if not sid or not name:
-                messagebox.showerror("Error", "All fields are required")
-                return
-            self.sections_data.append({"id": sid, "name": name})
-            self.save_data(self.sections_file, self.sections_data)
-            tree.insert("", "end", values=(sid, name))
-            win.destroy()
-        if CUSTOM:
-            save_btn = CTkButton(win, text="Save", font=(FONT_NAME, 12),
-                                 fg_color=BUTTON_BG, text_color=BUTTON_FG, command=save)
-        else:
-            save_btn = tk.Button(win, text="Save", font=(FONT_NAME, 12),
-                                 bg=BUTTON_BG, fg=BUTTON_FG, command=save)
-        save_btn.pack(pady=10)
-
-    def edit_section(self, tree):
-        selected = tree.focus()
-        if not selected:
-            messagebox.showerror("Error", "Select a section to edit")
-            return
-        values = tree.item(selected, 'values')
-        sid_val, name_val = values
-        if CUSTOM:
-            win = ctk.CTkToplevel(self.root)
-        else:
-            win = tk.Toplevel(self.root)
-        win.title("Edit Section")
-        win.geometry("300x200")
-        if CUSTOM:
-            lbl1 = CTkLabel(win, text="Section ID:", font=(FONT_NAME, 12), text_color="#000")
-        else:
-            lbl1 = tk.Label(win, text="Section ID:", font=(FONT_NAME, 12))
-        lbl1.pack(pady=(10,0))
-        id_entry = CTkEntry(win, font=(FONT_NAME, 12))
-        id_entry.insert(0, sid_val)
-        id_entry.pack(pady=5)
-        id_entry.configure(state="readonly")
-        if CUSTOM:
-            lbl2 = CTkLabel(win, text="Section Name:", font=(FONT_NAME, 12), text_color="#000")
-        else:
-            lbl2 = tk.Label(win, text="Section Name:", font=(FONT_NAME, 12))
-        lbl2.pack(pady=(10,0))
-        name_entry = CTkEntry(win, font=(FONT_NAME, 12))
-        name_entry.insert(0, name_val)
-        name_entry.pack(pady=5)
-        def save():
-            name = name_entry.get().strip()
-            if not name:
-                messagebox.showerror("Error", "Name cannot be empty")
-                return
-            for sec in self.sections_data:
-                if str(sec.get("id","")) == sid_val:
-                    sec["name"] = name
-            self.save_data(self.sections_file, self.sections_data)
-            tree.item(selected, values=(sid_val, name))
-            win.destroy()
-        if CUSTOM:
-            save_btn = CTkButton(win, text="Save", font=(FONT_NAME, 12),
-                                 fg_color=BUTTON_BG, text_color=BUTTON_FG, command=save)
-        else:
-            save_btn = tk.Button(win, text="Save", font=(FONT_NAME, 12),
-                                 bg=BUTTON_BG, fg=BUTTON_FG, command=save)
-        save_btn.pack(pady=10)
-
-    def delete_section(self, tree):
-        selected = tree.focus()
-        if not selected:
-            messagebox.showerror("Error", "Select a section to delete")
-            return
-        values = tree.item(selected, 'values')
-        sid_val, _ = values
-        confirm = messagebox.askyesno("Confirm", "Delete selected section?")
-        if not confirm:
-            return
-        self.sections_data = [sec for sec in self.sections_data if str(sec.get("id","")) != sid_val]
-        self.save_data(self.sections_file, self.sections_data)
-        tree.delete(selected)
-
-    def show_teachers(self):
-        self.clear_frame(self.content_frame)
-        if CUSTOM:
-            label = CTkLabel(self.content_frame, text="Teachers Module", font=(FONT_NAME, 18), fg_color=CONTENT_BG, text_color="#000")
-        else:
-            label = tk.Label(self.content_frame, text="Teachers Module", font=(FONT_NAME, 18), bg=CONTENT_BG, fg="#000")
-        label.pack(pady=10)
-        columns = ("Teacher", "Sections")
-        tree = ttk.Treeview(self.content_frame, columns=columns, show='headings')
-        for col in columns:
-            tree.heading(col, text=col)
-        for tea in self.teachers_data:
-            name = tea.get("teacher", tea.get("Teacher", ""))
-            secs = tea.get("sections", tea.get("Sections", []))
-            tree.insert("", "end", values=(name, ", ".join(secs) if isinstance(secs, list) else secs))
-        tree.pack(padx=10, pady=10, fill="x")
-        if CUSTOM:
-            btn_frame = CTkFrame(self.content_frame, fg_color=CONTENT_BG)
-            add_btn = CTkButton(btn_frame, text="Add", font=(FONT_NAME, 12),
-                                fg_color=BUTTON_BG, text_color=BUTTON_FG, command=lambda: self.add_teacher(tree))
-            edit_btn = CTkButton(btn_frame, text="Edit", font=(FONT_NAME, 12),
-                                fg_color=BUTTON_BG, text_color=BUTTON_FG, command=lambda: self.edit_teacher(tree))
-            del_btn = CTkButton(btn_frame, text="Delete", font=(FONT_NAME, 12),
-                                fg_color=BUTTON_BG, text_color=BUTTON_FG, command=lambda: self.delete_teacher(tree))
-        else:
-            btn_frame = tk.Frame(self.content_frame, bg=CONTENT_BG)
-            add_btn = tk.Button(btn_frame, text="Add", font=(FONT_NAME, 12),
-                                bg=BUTTON_BG, fg=BUTTON_FG, command=lambda: self.add_teacher(tree))
-            edit_btn = tk.Button(btn_frame, text="Edit", font=(FONT_NAME, 12),
-                                bg=BUTTON_BG, fg=BUTTON_FG, command=lambda: self.edit_teacher(tree))
-            del_btn = tk.Button(btn_frame, text="Delete", font=(FONT_NAME, 12),
-                                bg=BUTTON_BG, fg=BUTTON_FG, command=lambda: self.delete_teacher(tree))
-        btn_frame.pack(pady=10)
-        add_btn.pack(side="left", padx=5)
-        edit_btn.pack(side="left", padx=5)
-        del_btn.pack(side="left", padx=5)
-
-    def add_teacher(self, tree):
-        if CUSTOM:
-            win = ctk.CTkToplevel(self.root)
-        else:
-            win = tk.Toplevel(self.root)
-        win.title("Add Teacher")
-        win.geometry("300x250")
-        if CUSTOM:
-            lbl1 = CTkLabel(win, text="Teacher Name:", font=(FONT_NAME, 12), text_color="#000")
-        else:
-            lbl1 = tk.Label(win, text="Teacher Name:", font=(FONT_NAME, 12))
-        lbl1.pack(pady=(10,0))
-        name_entry = CTkEntry(win, font=(FONT_NAME, 12))
-        name_entry.pack(pady=5)
-        if CUSTOM:
-            lbl2 = CTkLabel(win, text="Sections (comma-separated):", font=(FONT_NAME, 12), text_color="#000")
-        else:
-            lbl2 = tk.Label(win, text="Sections (comma-separated):", font=(FONT_NAME, 12))
-        lbl2.pack(pady=(10,0))
-        sections_entry = CTkEntry(win, font=(FONT_NAME, 12))
-        sections_entry.pack(pady=5)
-        def save():
-            name = name_entry.get().strip()
-            secs = sections_entry.get().split(',')
-            secs = [s.strip() for s in secs if s.strip()]
-            if not name:
-                messagebox.showerror("Error", "Name cannot be empty")
-                return
-            self.teachers_data.append({"teacher": name, "sections": secs})
-            self.save_data(self.teachersections_file, self.teachers_data)
-            tree.insert("", "end", values=(name, ", ".join(secs)))
-            win.destroy()
-        if CUSTOM:
-            save_btn = CTkButton(win, text="Save", font=(FONT_NAME, 12),
-                                 fg_color=BUTTON_BG, text_color=BUTTON_FG, command=save)
-        else:
-            save_btn = tk.Button(win, text="Save", font=(FONT_NAME, 12),
-                                 bg=BUTTON_BG, fg=BUTTON_FG, command=save)
-        save_btn.pack(pady=10)
-
-    def edit_teacher(self, tree):
-        selected = tree.focus()
-        if not selected:
-            messagebox.showerror("Error", "Select a teacher to edit")
-            return
-        values = tree.item(selected, 'values')
-        name_val, secs_val = values
-        if CUSTOM:
-            win = ctk.CTkToplevel(self.root)
-        else:
-            win = tk.Toplevel(self.root)
-        win.title("Edit Teacher")
-        win.geometry("300x250")
-        if CUSTOM:
-            lbl1 = CTkLabel(win, text="Teacher Name:", font=(FONT_NAME, 12), text_color="#000")
-        else:
-            lbl1 = tk.Label(win, text="Teacher Name:", font=(FONT_NAME, 12))
-        lbl1.pack(pady=(10,0))
-        name_entry = CTkEntry(win, font=(FONT_NAME, 12))
-        name_entry.insert(0, name_val)
-        name_entry.pack(pady=5)
-        name_entry.configure(state="readonly")
-        if CUSTOM:
-            lbl2 = CTkLabel(win, text="Sections (comma-separated):", font=(FONT_NAME, 12), text_color="#000")
-        else:
-            lbl2 = tk.Label(win, text="Sections (comma-separated):", font=(FONT_NAME, 12))
-        lbl2.pack(pady=(10,0))
-        sections_entry = CTkEntry(win, font=(FONT_NAME, 12))
-        sections_entry.insert(0, secs_val)
-        sections_entry.pack(pady=5)
-        def save():
-            secs = sections_entry.get().split(',')
-            secs = [s.strip() for s in secs if s.strip()]
-            for tea in self.teachers_data:
-                if tea.get("teacher","") == name_val:
-                    tea["sections"] = secs
-            self.save_data(self.teachersections_file, self.teachers_data)
-            tree.item(selected, values=(name_val, ", ".join(secs)))
-            win.destroy()
-        if CUSTOM:
-            save_btn = CTkButton(win, text="Save", font=(FONT_NAME, 12),
-                                 fg_color=BUTTON_BG, text_color=BUTTON_FG, command=save)
-        else:
-            save_btn = tk.Button(win, text="Save", font=(FONT_NAME, 12),
-                                 bg=BUTTON_BG, fg=BUTTON_FG, command=save)
-        save_btn.pack(pady=10)
-
-    def delete_teacher(self, tree):
-        selected = tree.focus()
-        if not selected:
-            messagebox.showerror("Error", "Select a teacher to delete")
-            return
-        values = tree.item(selected, 'values')
-        name_val = values[0]
-        confirm = messagebox.askyesno("Confirm", "Delete selected teacher?")
-        if not confirm:
-            return
-        self.teachers_data = [tea for tea in self.teachers_data if tea.get("teacher","") != name_val]
-        self.save_data(self.teachersections_file, self.teachers_data)
-        tree.delete(selected)
-
-    def show_exams(self):
-        self.clear_frame(self.content_frame)
-        if CUSTOM:
-            label = CTkLabel(self.content_frame, text="Exams Module", font=(FONT_NAME, 18), fg_color=CONTENT_BG, text_color="#000")
-        else:
-            label = tk.Label(self.content_frame, text="Exams Module", font=(FONT_NAME, 18), bg=CONTENT_BG, fg="#000")
-        label.pack(pady=10)
-        columns = ("Exam", "Date")
-        tree = ttk.Treeview(self.content_frame, columns=columns, show='headings')
-        for col in columns:
-            tree.heading(col, text=col)
-        for ex in self.exams_data:
-            exam = ex.get("exam", ex.get("Exam", ""))
-            date = ex.get("date", ex.get("Date", ""))
-            tree.insert("", "end", values=(exam, date))
-        tree.pack(padx=10, pady=10, fill="x")
-        if CUSTOM:
-            btn_frame = CTkFrame(self.content_frame, fg_color=CONTENT_BG)
-            add_btn = CTkButton(btn_frame, text="Add", font=(FONT_NAME, 12),
-                                fg_color=BUTTON_BG, text_color=BUTTON_FG, command=lambda: self.add_exam(tree))
-            edit_btn = CTkButton(btn_frame, text="Edit", font=(FONT_NAME, 12),
-                                fg_color=BUTTON_BG, text_color=BUTTON_FG, command=lambda: self.edit_exam(tree))
-            del_btn = CTkButton(btn_frame, text="Delete", font=(FONT_NAME, 12),
-                                fg_color=BUTTON_BG, text_color=BUTTON_FG, command=lambda: self.delete_exam(tree))
-        else:
-            btn_frame = tk.Frame(self.content_frame, bg=CONTENT_BG)
-            add_btn = tk.Button(btn_frame, text="Add", font=(FONT_NAME, 12),
-                                bg=BUTTON_BG, fg=BUTTON_FG, command=lambda: self.add_exam(tree))
-            edit_btn = tk.Button(btn_frame, text="Edit", font=(FONT_NAME, 12),
-                                bg=BUTTON_BG, fg=BUTTON_FG, command=lambda: self.edit_exam(tree))
-            del_btn = tk.Button(btn_frame, text="Delete", font=(FONT_NAME, 12),
-                                bg=BUTTON_BG, fg=BUTTON_FG, command=lambda: self.delete_exam(tree))
-        btn_frame.pack(pady=10)
-        add_btn.pack(side="left", padx=5)
-        edit_btn.pack(side="left", padx=5)
-        del_btn.pack(side="left", padx=5)
-
-    def add_exam(self, tree):
-        if CUSTOM:
-            win = ctk.CTkToplevel(self.root)
-        else:
-            win = tk.Toplevel(self.root)
-        win.title("Add Exam")
-        win.geometry("300x200")
-        if CUSTOM:
-            lbl1 = CTkLabel(win, text="Exam Name:", font=(FONT_NAME, 12), text_color="#000")
-        else:
-            lbl1 = tk.Label(win, text="Exam Name:", font=(FONT_NAME, 12))
-        lbl1.pack(pady=(10,0))
-        exam_entry = CTkEntry(win, font=(FONT_NAME, 12))
-        exam_entry.pack(pady=5)
-        if CUSTOM:
-            lbl2 = CTkLabel(win, text="Date (YYYY-MM-DD):", font=(FONT_NAME, 12), text_color="#000")
-        else:
-            lbl2 = tk.Label(win, text="Date (YYYY-MM-DD):", font=(FONT_NAME, 12))
-        lbl2.pack(pady=(10,0))
-        date_entry = CTkEntry(win, font=(FONT_NAME, 12))
-        date_entry.pack(pady=5)
-        def save():
-            exam = exam_entry.get().strip()
-            date = date_entry.get().strip()
-            if not exam or not date:
-                messagebox.showerror("Error", "All fields are required")
-                return
-            self.exams_data.append({"exam": exam, "date": date})
-            self.save_data(self.exams_file, self.exams_data)
-            tree.insert("", "end", values=(exam, date))
-            win.destroy()
-        if CUSTOM:
-            save_btn = CTkButton(win, text="Save", font=(FONT_NAME, 12),
-                                 fg_color=BUTTON_BG, text_color=BUTTON_FG, command=save)
-        else:
-            save_btn = tk.Button(win, text="Save", font=(FONT_NAME, 12),
-                                 bg=BUTTON_BG, fg=BUTTON_FG, command=save)
-        save_btn.pack(pady=10)
-
-    def edit_exam(self, tree):
-        selected = tree.focus()
-        if not selected:
-            messagebox.showerror("Error", "Select an exam to edit")
-            return
-        values = tree.item(selected, 'values')
-        exam_val, date_val = values
-        if CUSTOM:
-            win = ctk.CTkToplevel(self.root)
-        else:
-            win = tk.Toplevel(self.root)
-        win.title("Edit Exam")
-        win.geometry("300x200")
-        if CUSTOM:
-            lbl1 = CTkLabel(win, text="Exam Name:", font=(FONT_NAME, 12), text_color="#000")
-        else:
-            lbl1 = tk.Label(win, text="Exam Name:", font=(FONT_NAME, 12))
-        lbl1.pack(pady=(10,0))
-        exam_entry = CTkEntry(win, font=(FONT_NAME, 12))
-        exam_entry.insert(0, exam_val)
-        exam_entry.pack(pady=5)
-        if CUSTOM:
-            lbl2 = CTkLabel(win, text="Date (YYYY-MM-DD):", font=(FONT_NAME, 12), text_color="#000")
-        else:
-            lbl2 = tk.Label(win, text="Date (YYYY-MM-DD):", font=(FONT_NAME, 12))
-        lbl2.pack(pady=(10,0))
-        date_entry = CTkEntry(win, font=(FONT_NAME, 12))
-        date_entry.insert(0, date_val)
-        date_entry.pack(pady=5)
-        def save():
-            exam = exam_entry.get().strip()
-            date = date_entry.get().strip()
-            if not exam or not date:
-                messagebox.showerror("Error", "All fields are required")
-                return
-            for ex in self.exams_data:
-                if ex.get("exam","") == exam_val and ex.get("date","") == date_val:
-                    ex["exam"] = exam
-                    ex["date"] = date
-            self.save_data(self.exams_file, self.exams_data)
-            tree.item(selected, values=(exam, date))
-            win.destroy()
-        if CUSTOM:
-            save_btn = CTkButton(win, text="Save", font=(FONT_NAME, 12),
-                                 fg_color=BUTTON_BG, text_color=BUTTON_FG, command=save)
-        else:
-            save_btn = tk.Button(win, text="Save", font=(FONT_NAME, 12),
-                                 bg=BUTTON_BG, fg=BUTTON_FG, command=save)
-        save_btn.pack(pady=10)
-
-    def delete_exam(self, tree):
-        selected = tree.focus()
-        if not selected:
-            messagebox.showerror("Error", "Select an exam to delete")
-            return
-        values = tree.item(selected, 'values')
-        exam_val = values[0]
-        confirm = messagebox.askyesno("Confirm", "Delete selected exam?")
-        if not confirm:
-            return
-        self.exams_data = [ex for ex in self.exams_data if ex.get("exam","") != exam_val]
-        self.save_data(self.exams_file, self.exams_data)
-        tree.delete(selected)
-
-    def show_topics(self):
-        self.clear_frame(self.content_frame)
-        if CUSTOM:
-            label = CTkLabel(self.content_frame, text="Topics Module", font=(FONT_NAME, 18), fg_color=CONTENT_BG, text_color="#000")
-        else:
-            label = tk.Label(self.content_frame, text="Topics Module", font=(FONT_NAME, 18), bg=CONTENT_BG, fg="#000")
-        label.pack(pady=10)
-        columns = ("Topic", "Subject")
-        tree = ttk.Treeview(self.content_frame, columns=columns, show='headings')
-        for col in columns:
-            tree.heading(col, text=col)
-        for top in self.topics_data:
-            topic = top.get("topic", top.get("Topic", ""))
-            subj = top.get("subject", top.get("Subject", ""))
-            tree.insert("", "end", values=(topic, subj))
-        tree.pack(padx=10, pady=10, fill="x")
-        if CUSTOM:
-            btn_frame = CTkFrame(self.content_frame, fg_color=CONTENT_BG)
-            add_btn = CTkButton(btn_frame, text="Add", font=(FONT_NAME, 12),
-                                fg_color=BUTTON_BG, text_color=BUTTON_FG, command=lambda: self.add_topic(tree))
-            edit_btn = CTkButton(btn_frame, text="Edit", font=(FONT_NAME, 12),
-                                fg_color=BUTTON_BG, text_color=BUTTON_FG, command=lambda: self.edit_topic(tree))
-            del_btn = CTkButton(btn_frame, text="Delete", font=(FONT_NAME, 12),
-                                fg_color=BUTTON_BG, text_color=BUTTON_FG, command=lambda: self.delete_topic(tree))
-        else:
-            btn_frame = tk.Frame(self.content_frame, bg=CONTENT_BG)
-            add_btn = tk.Button(btn_frame, text="Add", font=(FONT_NAME, 12),
-                                bg=BUTTON_BG, fg=BUTTON_FG, command=lambda: self.add_topic(tree))
-            edit_btn = tk.Button(btn_frame, text="Edit", font=(FONT_NAME, 12),
-                                bg=BUTTON_BG, fg=BUTTON_FG, command=lambda: self.edit_topic(tree))
-            del_btn = tk.Button(btn_frame, text="Delete", font=(FONT_NAME, 12),
-                                bg=BUTTON_BG, fg=BUTTON_FG, command=lambda: self.delete_topic(tree))
-        btn_frame.pack(pady=10)
-        add_btn.pack(side="left", padx=5)
-        edit_btn.pack(side="left", padx=5)
-        del_btn.pack(side="left", padx=5)
-
-    def add_topic(self, tree):
-        if CUSTOM:
-            win = ctk.CTkToplevel(self.root)
-        else:
-            win = tk.Toplevel(self.root)
-        win.title("Add Topic")
-        win.geometry("300x250")
-        if CUSTOM:
-            lbl1 = CTkLabel(win, text="Topic Name:", font=(FONT_NAME, 12), text_color="#000")
-        else:
-            lbl1 = tk.Label(win, text="Topic Name:", font=(FONT_NAME, 12))
-        lbl1.pack(pady=(10,0))
-        topic_entry = CTkEntry(win, font=(FONT_NAME, 12))
-        topic_entry.pack(pady=5)
-        if CUSTOM:
-            lbl2 = CTkLabel(win, text="Subject:", font=(FONT_NAME, 12), text_color="#000")
-        else:
-            lbl2 = tk.Label(win, text="Subject:", font=(FONT_NAME, 12))
-        lbl2.pack(pady=(10,0))
-        subject_entry = CTkEntry(win, font=(FONT_NAME, 12))
-        subject_entry.pack(pady=5)
-        def save():
-            topic = topic_entry.get().strip()
-            subj = subject_entry.get().strip()
-            if not topic or not subj:
-                messagebox.showerror("Error", "All fields are required")
-                return
-            self.topics_data.append({"topic": topic, "subject": subj})
-            self.save_data(self.topics_file, self.topics_data)
-            tree.insert("", "end", values=(topic, subj))
-            win.destroy()
-        if CUSTOM:
-            save_btn = CTkButton(win, text="Save", font=(FONT_NAME, 12),
-                                 fg_color=BUTTON_BG, text_color=BUTTON_FG, command=save)
-        else:
-            save_btn = tk.Button(win, text="Save", font=(FONT_NAME, 12),
-                                 bg=BUTTON_BG, fg=BUTTON_FG, command=save)
-        save_btn.pack(pady=10)
-
-    def edit_topic(self, tree):
-        selected = tree.focus()
-        if not selected:
-            messagebox.showerror("Error", "Select a topic to edit")
-            return
-        values = tree.item(selected, 'values')
-        topic_val, subj_val = values
-        if CUSTOM:
-            win = ctk.CTkToplevel(self.root)
-        else:
-            win = tk.Toplevel(self.root)
-        win.title("Edit Topic")
-        win.geometry("300x250")
-        if CUSTOM:
-            lbl1 = CTkLabel(win, text="Topic Name:", font=(FONT_NAME, 12), text_color="#000")
-        else:
-            lbl1 = tk.Label(win, text="Topic Name:", font=(FONT_NAME, 12))
-        lbl1.pack(pady=(10,0))
-        topic_entry = CTkEntry(win, font=(FONT_NAME, 12))
-        topic_entry.insert(0, topic_val)
-        topic_entry.pack(pady=5)
-        if CUSTOM:
-            lbl2 = CTkLabel(win, text="Subject:", font=(FONT_NAME, 12), text_color="#000")
-        else:
-            lbl2 = tk.Label(win, text="Subject:", font=(FONT_NAME, 12))
-        lbl2.pack(pady=(10,0))
-        subject_entry = CTkEntry(win, font=(FONT_NAME, 12))
-        subject_entry.insert(0, subj_val)
-        subject_entry.pack(pady=5)
-        def save():
-            topic = topic_entry.get().strip()
-            subj = subject_entry.get().strip()
-            if not topic or not subj:
-                messagebox.showerror("Error", "All fields are required")
-                return
-            for t in self.topics_data:
-                if t.get("topic","") == topic_val and t.get("subject","") == subj_val:
-                    t["topic"] = topic
-                    t["subject"] = subj
-            self.save_data(self.topics_file, self.topics_data)
-            tree.item(selected, values=(topic, subj))
-            win.destroy()
-        if CUSTOM:
-            save_btn = CTkButton(win, text="Save", font=(FONT_NAME, 12),
-                                 fg_color=BUTTON_BG, text_color=BUTTON_FG, command=save)
-        else:
-            save_btn = tk.Button(win, text="Save", font=(FONT_NAME, 12),
-                                 bg=BUTTON_BG, fg=BUTTON_FG, command=save)
-        save_btn.pack(pady=10)
-
-    def delete_topic(self, tree):
-        selected = tree.focus()
-        if not selected:
-            messagebox.showerror("Error", "Select a topic to delete")
-            return
-        values = tree.item(selected, 'values')
-        topic_val = values[0]
-        confirm = messagebox.askyesno("Confirm", "Delete selected topic?")
-        if not confirm:
-            return
-        self.topics_data = [t for t in self.topics_data if t.get("topic","") != topic_val]
-        self.save_data(self.topics_file, self.topics_data)
-        tree.delete(selected)
+def launch():
+    root = tk.Tk()
+    app = App(root)
+    root.mainloop()
 
 if __name__ == "__main__":
-    app = CTk()
-    EduTrackApp(app)
-    app.mainloop()
+    launch()
